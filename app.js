@@ -3,31 +3,48 @@ import mongoose from "mongoose";
 import cors from "cors";
 import dotenv from "dotenv";
 import userRoutes from "./routes/UserRoute.js";
-const app = express(); // Création de l'application Express
+import { seedDatabase } from "./config/seed.js";
 
-// config
+const app = express(); // Create the Express application
+
+// Config
 dotenv.config();
 
-// DATABASE CONNECTION
-const databaseUri =
-  process.env.NODE_ENV === "production"
-    ? process.env.PROD_DATABASE
-    : process.env.DEV_DATABASE;
+// Middleware setup
+app.use(cors()); // Enable CORS middleware
+app.use(express.json()); // Enable middleware for parsing JSON
 
-mongoose
-  .connect(databaseUri, {
-    dbName: "Engineers",
-  })
-  .then(() => {
-    console.log("Connected to the database");
-  })
-  .catch((err) => {
-    console.error("Database connection error:", err);
-  });
-
-app.use(cors()); // Activer le middleware CORS pour permettre les requêtes cross-origin
-app.use(express.json()); // Activer le middleware pour parser le JSON dans les requêtes HTTP
-
+// Routes
 app.use("/api", userRoutes);
+
+// Function to connect database, seed, and start the server
+const startServer = async () => {
+  try {
+    const databaseUri =
+      process.env.NODE_ENV === "production"
+        ? process.env.PROD_DATABASE
+        : process.env.DEV_DATABASE;
+
+    // Database connection
+    await mongoose.connect(databaseUri, { dbName: "Engineers" });
+    console.log("Connected to the database");
+
+    // Database seeding
+    await seedDatabase();
+    console.log("Database seeding completed");
+
+    // Start the server
+    const PORT = process.env.PORT || 5000;
+    app.listen(PORT, () => {
+      console.log(`Server running on http://localhost:${PORT}`);
+    });
+  } catch (error) {
+    console.error("Error starting the application:", error);
+    process.exit(1); // Exit with failure code
+  }
+};
+
+// Start the server
+startServer();
 
 export default app;

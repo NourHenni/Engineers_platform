@@ -14,10 +14,10 @@ export const createUser = async (req, res) => {
       const hashedPassword = await bcrypt.hash(req.body.password, 10);
       const user = new User({
         ...req.body,
-        motDePasse: hashedPassword,
+        password: hashedPassword,
       });
       await user.save();
-      const { motDePasse, ...newUser } = user.toObject();
+      const { password, ...newUser } = user.toObject();
       res.status(200).json({
         model: newUser,
         message: "success",
@@ -40,7 +40,7 @@ export const login = async (req, res) => {
     }
     const validpassword = await bcrypt.compare(
       req.body.password,
-      foundUser.motDePasse
+      foundUser.password
     );
 
     if (!validpassword) {

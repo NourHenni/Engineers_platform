@@ -1,4 +1,3 @@
-// models/userModel.js
 import mongoose from "mongoose";
 
 const userSchema = new mongoose.Schema(
@@ -21,7 +20,7 @@ const userSchema = new mongoose.Schema(
       required: true,
       unique: true,
     },
-    motDePasse: {
+    password: {
       type: String,
       required: true,
     },
@@ -33,7 +32,7 @@ const userSchema = new mongoose.Schema(
   },
   {
     timestamps: true,
-  }
+  } 
 );
 
 export default mongoose.model("User", userSchema);
