@@ -34,7 +34,9 @@ export const seedDatabase = async () => {
   try {
     for (const userData of defaultUsers) {
       // Check if the user already exists
-      const existingUser = await User.findOne({ adresseEmail: userData.adresseEmail });
+      const existingUser = await User.findOne({
+        adresseEmail: userData.adresseEmail,
+      });
       if (!existingUser) {
         // Hash the password
         const hashedPassword = await bcrypt.hash(userData.password, 10);
