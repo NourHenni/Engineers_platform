@@ -11,8 +11,8 @@ import { isAdmin } from "../middellwares/roleMiddellware.js";
 const router = express.Router();
 
 router.get("/getPfas", authMiddleware, isAdmin, fetchPfas);
-router.post("/PFA/open", addPeriode);
-router.get("/PFA/open", getPeriodes);
-router.patch("/PFA/open", updateDelais);
+router.post("/open", addPeriode);
+router.get("/open", getPeriodes);
+router.patch("/open", updateDelais);
 
 export default router;

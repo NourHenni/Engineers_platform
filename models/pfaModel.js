@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 import mongoose from "mongoose";
 
 const pfaSchema = new mongoose.Schema(
@@ -46,6 +45,3 @@ const pfaSchema = new mongoose.Schema(
 );
 
 export default mongoose.model("Pfa", pfaSchema);
-=======
-
->>>>>>> souhir

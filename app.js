@@ -3,7 +3,6 @@ import mongoose from "mongoose";
 import cors from "cors";
 import dotenv from "dotenv";
 import userRoutes from "./routes/UserRoute.js";
-
 import pfaRoutes from "./routes/pfaRoute.js";
 
 import { seedDatabase } from "./config/seed.js";
@@ -19,7 +18,6 @@ app.use(express.json()); // Enable middleware for parsing JSON
 
 // Routes
 app.use("/api", userRoutes);
-
 app.use("/api/pfa", pfaRoutes);
 
 // Function to connect database, seed, and start the server
