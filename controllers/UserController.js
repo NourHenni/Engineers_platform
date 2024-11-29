@@ -32,27 +32,31 @@ export const createUser = async (req, res) => {
 
 export const login = async (req, res) => {
   try {
-    let foundUser = await User.findOne({ adresseEmail: req.body.adresseEmail });
+    // Find the user by CIN instead of email
+    let foundUser = await User.findOne({ cin: req.body.cin });
     if (!foundUser) {
       return res.status(401).json({
-        message: "login incorrect",
+        message: "CIN ou mot de passe incorrect",
       });
     }
-    const validpassword = await bcrypt.compare(
-      req.body.password,
-      foundUser.password
-    );
+    
+    // Compare the provided password with the hashed password stored in the database
+    const validPassword = await bcrypt.compare(req.body.password, foundUser.password);
 
-    if (!validpassword) {
+    if (!validPassword) {
       return res.status(401).json({
-        message: "login ou mot de passe incorrectes",
+        message: "CIN ou mot de passe incorrect",
       });
     }
 
+    // Generate JWT token
+    const token = jwt.sign({ userId: foundUser._id }, process.env.JWT_SECRET, {
+      expiresIn: "1h",
+    });
+
+    // Respond with the token
     res.status(200).json({
-      token: jwt.sign({ userId: foundUser._id }, process.env.JWT_SECRET, {
-        expiresIn: "1h",
-      }),
+      token,
     });
   } catch (error) {
     res.status(500).json({
