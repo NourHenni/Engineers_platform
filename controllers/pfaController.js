@@ -162,56 +162,6 @@ export const updateDelais = async (req, res) => {
   }
 };
 
-// Contrôleur pour ajouter un sujet
-export const addSujet = async (req, res) => {
-  try {
-    const { titre, description, technologies, eta_etudiant } = req.body;
-
-    // Vérification des champs obligatoires
-    if (!titre || !description || !technologies) {
-      return res.status(400).json({
-        error:
-          "Les champs 'titre', 'description' et 'technologies' sont requis.",
-      });
-    }
-
-    // Vérifier si le délai pour le dépôt est encore valide
-    const periode = await Periode.findOne({ Nom: "PFA" });
-
-    if (!periode) {
-      return res.status(404).json({ error: "Période de dépôt introuvable." });
-    }
-
-    const now = new Date();
-    if (now < periode.Date_Debut || now > periode.Date_Fin) {
-      return res
-        .status(400)
-        .json({ error: "Le délai pour soumettre un sujet est dépassé." });
-    }
-
-    // Création d'un nouveau sujet
-    const nouveauSujet = new Sujet({
-      titre,
-      description,
-      technologies,
-      eta_etudiant,
-    });
-
-    // Enregistrer le sujet dans la base de données
-    await nouveauSujet.save();
-
-    res.status(201).json({
-      message: "Sujet ajouté avec succès.",
-      sujet: nouveauSujet,
-    });
-  } catch (error) {
-    console.error("Erreur lors de l'ajout du sujet :", error.message);
-    res
-      .status(500)
-      .json({ error: "Erreur serveur. Veuillez réessayer plus tard." });
-  }
-};
-
 // Contrôleur pour ajouter un nouveau sujet PFA
 export const ajouterSujetPfa = async (req, res) => {
   try {
