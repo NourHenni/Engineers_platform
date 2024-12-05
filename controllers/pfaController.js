@@ -1,4 +1,4 @@
-import pfaModel from "../models/pfaModel.js";
+import Pfa from "../models/pfaModel.js";
 import userModel from "../models/userModel.js";
 import Periode from "../models/periodeModel.js";
 
@@ -173,7 +173,8 @@ export const ajouterSujetPfa = async (req, res) => {
       estBinome,
       etudiant1, // Étudiant 1 (obligatoire pour monôme, facultatif pour binôme)
       etudiant2, // Étudiant 2 (obligatoire si estBinome est true)
-      enseignantId, // Identifiant de l'enseignant qui dépose le sujet
+      etatAffectation,
+      status,
     } = req.body;
     console.log("Données reçues:", req.body);
 
@@ -229,10 +230,9 @@ export const ajouterSujetPfa = async (req, res) => {
       technologies,
       estBinome,
       natureSujet: estBinome ? "Binôme" : "Monôme",
-
-      etatDepot: "non rejeté",
-      etatAffectation: "non affecté",
-      status: "non validé",
+      etatDepot: "non rejecté",
+      etatAffectation,
+      status,
       //enseignant: enseignantId, // Associer l'enseignant au sujet
     });
 

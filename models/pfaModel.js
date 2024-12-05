@@ -12,7 +12,7 @@ const pfaSchema = new mongoose.Schema(
       required: true,
     },
     description: { type: String, required: true },
-    technologies: { type: String, required: true },
+    technologies: { type: [String], required: true },
     estBinome: { type: Boolean, required: false },
     etatDepot: {
       type: String,
