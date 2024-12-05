@@ -175,6 +175,7 @@ export const ajouterSujetPfa = async (req, res) => {
       etudiant2, // Étudiant 2 (obligatoire si estBinome est true)
       enseignantId, // Identifiant de l'enseignant qui dépose le sujet
     } = req.body;
+    console.log("Données reçues:", req.body);
 
     // Valider les données d'entrée
     if (!titreSujet || !description || !technologies) {
@@ -183,13 +184,13 @@ export const ajouterSujetPfa = async (req, res) => {
           "Les champs titreSujet, description et technologies sont requis.",
       });
     }
-
-    // Vérifier si une période valide est ouverte
-    const dateActuelle = new Date();
+    const currentDate = new Date();
     const periodeOuverte = await Periode.findOne({
-      Nom: "PFA",
-      Date_Debut: { $lte: dateActuelle },
-      Date_Fin: { $gte: dateActuelle },
+      $and: [
+        { Nom: "PFA" },
+        { Date_Debut: { $lte: currentDate } },
+        { Date_Fin: { $gte: currentDate } },
+      ],
     });
 
     if (!periodeOuverte) {
@@ -215,11 +216,11 @@ export const ajouterSujetPfa = async (req, res) => {
     }
 
     // Vérifier la présence de l'identifiant de l'enseignant
-    if (!enseignantId) {
-      return res.status(400).json({
-        message: "L'identifiant de l'enseignant (enseignantId) est requis.",
-      });
-    }
+    //if (!enseignantId) {
+    //return res.status(400).json({
+    //message: "L'identifiant de l'enseignant (enseignantId) est requis.",
+    //});
+    //}
 
     // Préparer l'enregistrement du sujet PFA
     const nouveauPfa = new Pfa({
@@ -228,11 +229,11 @@ export const ajouterSujetPfa = async (req, res) => {
       technologies,
       estBinome,
       natureSujet: estBinome ? "Binôme" : "Monôme",
-      code_pfa: `PFA-${Date.now()}`, // Générer un code unique
+
       etatDepot: "non rejeté",
       etatAffectation: "non affecté",
       status: "non validé",
-      enseignant: enseignantId, // Associer l'enseignant au sujet
+      //enseignant: enseignantId, // Associer l'enseignant au sujet
     });
 
     // Ajouter les noms des étudiants si fournis
@@ -244,7 +245,7 @@ export const ajouterSujetPfa = async (req, res) => {
 
     res.status(201).json({
       message: "Sujet PFA ajouté avec succès.",
-      pfa: nouveauPfa,
+      Pfa: nouveauPfa,
     });
   } catch (error) {
     console.error("Erreur lors de l'ajout d'un sujet PFA :", error.message);

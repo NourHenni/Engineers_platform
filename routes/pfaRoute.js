@@ -15,5 +15,5 @@ router.get("/getPfas", authMiddleware, isAdmin, fetchPfas);
 router.post("/open", addPeriode);
 router.get("/open", getPeriodes);
 router.patch("/open", updateDelais);
-router.post("/open", authMiddleware, isEnseignant, ajouterSujetPfa);
+router.post("/post", ajouterSujetPfa);
 export default router;
