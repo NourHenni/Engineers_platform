@@ -2,10 +2,12 @@ import express from "express";
 import mongoose from "mongoose";
 import cors from "cors";
 import dotenv from "dotenv";
+import "./cronjobs.js";
 import userRoutes from "./routes/UserRoute.js";
 import { seedDatabase } from "./config/seed.js";
+import matiereRoute from "./routes/matiereRoute.js";
 
-const app = express(); // Create the Express application
+const app = express();
 
 // Config
 dotenv.config();
@@ -16,6 +18,7 @@ app.use(express.json()); // Enable middleware for parsing JSON
 
 // Routes
 app.use("/api", userRoutes);
+app.use("/matieres", matiereRoute);
 
 // Function to connect database, seed, and start the server
 const startServer = async () => {
