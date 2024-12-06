@@ -2,14 +2,14 @@ import express from "express";
 import mongoose from "mongoose";
 import cors from "cors";
 import dotenv from "dotenv";
+import "./cronjobs.js";
 import userRoutes from "./routes/UserRoute.js";
 import pfaRoutes from "./routes/pfaRoute.js";
 import matiereRoute from "./routes/matiereRoute.js";
 import competenceRoute from "./routes/competenceRoute.js";
-
 import { seedDatabase } from "./config/seed.js";
 
-const app = express(); // Create the Express application
+const app = express();
 
 // Config
 dotenv.config();
@@ -19,6 +19,7 @@ app.use(cors()); // Enable CORS middleware
 app.use(express.json()); // Enable middleware for parsing JSON
 
 // Routes
+
 app.use("/", userRoutes);
 app.use("/api/pfa", pfaRoutes);
 app.use("/api", competenceRoute);
