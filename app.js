@@ -4,6 +4,8 @@ import cors from "cors";
 import dotenv from "dotenv";
 import userRoutes from "./routes/UserRoute.js";
 import pfaRoutes from "./routes/pfaRoute.js";
+import matiereRoute from "./routes/matiereRoute.js";
+import competenceRoute from "./routes/competenceRoute.js";
 
 import { seedDatabase } from "./config/seed.js";
 
@@ -19,6 +21,8 @@ app.use(express.json()); // Enable middleware for parsing JSON
 // Routes
 app.use("/", userRoutes);
 app.use("/api/pfa", pfaRoutes);
+app.use("/api", competenceRoute);
+app.use("/matieres", matiereRoute);
 
 // Function to connect database, seed, and start the server
 const startServer = async () => {
