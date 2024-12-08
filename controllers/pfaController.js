@@ -1,25 +1,52 @@
 import pfaModel from "../models/pfaModel.js";
 import userModel from "../models/userModel.js";
 import Periode from "../models/periodeModel.js";
+import moment from "moment";
+import periodeModel from "../models/periodeModel.js";
 
-export const fetchPfas = async (req, res) => {
+export const addPeriod = async (req, res) => {
   try {
-    if (req.auth.role === "admin") {
-      const foundUsers = await userModel.find({ role: "admin" });
+    const currentDate = moment().utc().startOf("day");
+    const start_date = moment(req.body.DateDebutDepot + "T00:00:00Z").utc();
+    const end_date = moment(req.body.DateFinDepot + "T23:59:59Z").utc();
+    if (end_date.isBefore(currentDate) || end_date.isBefore(start_date)) {
+      res.status(400).json({
+        success: false,
+        message: "Date Invalide",
+      });
     } else {
-      console.log("Vous n'avez pas les permissions nécessaires.");
-    }
-    const sujetsPfa = await pfaModel.find();
-
-    if (sujetsPfa.length === 0) {
-      res.status(400).json({ message: " pas encore de sujets pfa déposés" });
-    } else {
-      res.status(200).json({ model: sujetsPfa, message: " Les sujets pfas" });
+      const period = new periodeModel({
+        Nom: req.body.Nom,
+        Date_Debut_depot: start_date,
+        Date_Fin_depot: end_date,
+        type: req.body.type,
+      });
+      const foundPeriodType = await periodeModel.findOne({ type: period.type });
+      if (!foundPeriodType) {
+        if (start_date.isAfter(currentDate, "day")) {
+          period.PeriodState = "Not started yet";
+        } else if (
+          start_date.isSame(currentDate, "day") ||
+          start_date.isBefore(currentDate, "day")
+        ) {
+          period.PeriodState = "In progress";
+        }
+        if (
+          period.PeriodState == "In progress" ||
+          period.PeriodState == "Not started yet"
+        ) {
+          await period.save();
+          res.status(200).send({ message: "période crée avec succés" });
+        }
+      } else {
+        res.status(400).send({
+          message: "Une periode avec ce type éxiste deja ",
+        });
+      }
     }
   } catch (error) {
-    res.status(500).json({
-      message: error.message,
-    });
+    console.error(error);
+    res.status(500).json({ message: "Erreur serveur", error: error.message });
   }
 };
 
@@ -57,8 +84,8 @@ export const addPeriode = async (req, res) => {
     // Créer une nouvelle période
     const nouvellePeriode = new Periode({
       Nom: "PFA",
-      Date_Debut: new Date(dateDebut),
-      Date_Fin: new Date(dateFin),
+      Date_Debut: dateDebut,
+      Date_Fin: dateFin,
     });
 
     await nouvellePeriode.save();
@@ -133,5 +160,153 @@ export const updateDelais = async (req, res) => {
     res
       .status(500)
       .json({ error: "Erreur serveur. Veuillez réessayer plus tard." });
+  }
+};
+
+export const fetchPfas = async (req, res) => {
+  try {
+    const sujetsPfa = await pfaModel.find();
+
+    if (sujetsPfa.length === 0) {
+      res.status(400).json({ message: " pas encore de sujets pfa déposés" });
+    } else {
+      res.status(200).json({ model: sujetsPfa, message: " Les sujets pfas" });
+    }
+  } catch (error) {
+    res.status(500).json({
+      message: error.message,
+    });
+  }
+};
+
+export const fecthPfaById = async (req, res) => {
+  try {
+    const sujetPFA = await pfaModel.findOne({ _id: req.params.idPFA });
+    if (!sujetPFA) {
+      res
+        .status(400)
+        .json({ message: "Sujet pfa inexistant  veuillez vérifier !!" });
+    } else {
+      const userRole = req.auth.role;
+
+      if (userRole === "admin") {
+        res.status(200).json({ model: sujetPFA, message: " Le sujet PFA est" });
+      } else if (userRole === "etudiant") {
+        const { updatedAt, createdAt, _id, etatDepot, ...newPfa } =
+          sujetPFA.toObject();
+        res.status(200).json({
+          model: newPfa,
+          message: "success",
+        });
+      } else {
+        return res.status(403).json({
+          success: false,
+          message: "Accès refusé",
+        });
+      }
+    }
+  } catch (error) {
+    res.status(500).json({
+      message: error.message,
+    });
+  }
+};
+
+export const changeState = async (req, res) => {
+  try {
+    const sujetPFA = await pfaModel.findById(req.params.idPFA);
+
+    if (!sujetPFA) {
+      return res.status(400).json({
+        message: "Sujet PFA inexistant, veuillez vérifier !!",
+      });
+    }
+    const { etatDepot } = req.body;
+    if (sujetPFA.etatDepot === "not rejected" && etatDepot === "rejected") {
+      sujetPFA.etatDepot = etatDepot;
+
+      await sujetPFA.save();
+
+      return res.status(200).json({
+        message: "Le statut du sujet PFA est changé en rejeté avec succès",
+      });
+    } else {
+      return res.status(400).json({
+        message: "La transition vers cet état n'est pas autorisée.",
+      });
+    }
+  } catch (error) {
+    res.status(500).json({
+      message: error.message,
+    });
+  }
+};
+
+export const publishPfas = async (req, res) => {
+  try {
+    const response = req.params.response;
+
+    if (response == true) {
+      const currentDate = moment().utc().startOf("day");
+      const start_date = moment(req.body.dateDebutChoix + "T00:00:00Z").utc();
+      const end_date = moment(req.body.dateFinChoix + "T23:59:59Z").utc();
+      if (end_date.isBefore(currentDate) || end_date.isBefore(start_date)) {
+        res.status(400).json({
+          success: false,
+          message: "Date Invalide",
+        });
+      } else {
+        const foundPfas = await pfaModel.find({ etatDepot: "not rejected" });
+        if (foundPfas.length > 0) {
+          const periodChoix = new periodeModel({
+            Nom: req.body.Nom,
+            Date_Debut_choix: start_date,
+            Date_Fin_choix: end_date,
+            type: req.body.type,
+          });
+          const foundPeriodType = await periodeModel.findOne({
+            Nom: periodChoix.Nom,
+          });
+          if (!foundPeriodType) {
+            if (start_date.isAfter(currentDate, "day")) {
+              periodChoix.PeriodState = "Not started yet";
+            } else if (
+              start_date.isSame(currentDate, "day") ||
+              start_date.isBefore(currentDate, "day")
+            ) {
+              periodChoix.PeriodState = "In progress";
+            }
+            if (
+              periodChoix.PeriodState == "In progress" ||
+              periodChoix.PeriodState == "Not started yet"
+            ) {
+              await periodChoix.save();
+              await pfaModel.updateMany(
+                { etatDepot: "not rejected" },
+                { etatDepot: "published" }
+              );
+
+              res
+                .status(200)
+                .send(
+                  `${foundPfas.length} PFAs publiés et période mise à jour.`
+                );
+            }
+          } else {
+            res.status(400).send({
+              message: "Une periode de choix des sujets Pfas éxiste deja ",
+            });
+          }
+        } else {
+          res.status(200).send("Aucun PFA à publier.");
+        }
+      }
+    } else {
+      return res.status(200).send("Liste des PFA masquée.");
+    }
+  } catch (error) {
+    res.status(500).json({
+      message: error.message,
+    });
   }
 };
