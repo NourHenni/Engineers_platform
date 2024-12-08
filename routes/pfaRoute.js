@@ -5,6 +5,10 @@ import {
   getPeriodes,
   updateDelais,
   ajouterSujetPfa,
+  getAllPfasByTeacher,
+  getPfaByIdForTeacher,
+  modifyPfaSubject,
+  deletePfa,
 } from "../controllers/pfaController.js";
 import { authMiddleware } from "../middellwares/authMiddellware.js";
 import { isAdmin } from "../middellwares/roleMiddellware.js";
@@ -15,5 +19,9 @@ router.get("/getPfas", authMiddleware, isAdmin, fetchPfas);
 router.post("/open", addPeriode);
 router.get("/open", getPeriodes);
 router.patch("/open", updateDelais);
-router.post("/post", ajouterSujetPfa);
+router.post("/post", authMiddleware, isEnseignant, ajouterSujetPfa);
+router.get("/mine", authMiddleware, isEnseignant, getAllPfasByTeacher);
+router.get("/:id/mine", authMiddleware, isEnseignant, getPfaByIdForTeacher);
+router.patch("/:id/mine", authMiddleware, isEnseignant, modifyPfaSubject);
+router.delete("/:id", authMiddleware, isEnseignant, deletePfa);
 export default router;

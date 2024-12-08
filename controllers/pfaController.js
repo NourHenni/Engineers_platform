@@ -162,93 +162,244 @@ export const updateDelais = async (req, res) => {
   }
 };
 
-// Contrôleur pour ajouter un nouveau sujet PFA
 export const ajouterSujetPfa = async (req, res) => {
   try {
-    // Extraire les détails depuis le corps de la requête
-    const {
-      titreSujet,
-      description,
-      technologies,
-      estBinome,
-      etudiant1, // Étudiant 1 (obligatoire pour monôme, facultatif pour binôme)
-      etudiant2, // Étudiant 2 (obligatoire si estBinome est true)
-      etatAffectation,
-      status,
-    } = req.body;
-    console.log("Données reçues:", req.body);
+    const { titreSujet, description, technologies, estBinome } = req.body;
 
-    // Valider les données d'entrée
+    // Vérification des données
     if (!titreSujet || !description || !technologies) {
-      return res.status(400).json({
-        message:
-          "Les champs titreSujet, description et technologies sont requis.",
-      });
+      return res.status(400).json({ message: "Champs requis manquants." });
     }
-    const currentDate = new Date();
-    const periodeOuverte = await Periode.findOne({
-      $and: [
-        { Nom: "PFA" },
-        { Date_Debut: { $lte: currentDate } },
-        { Date_Fin: { $gte: currentDate } },
-      ],
-    });
 
-    if (!periodeOuverte) {
-      return res.status(400).json({
-        message:
-          "Aucune période ouverte actuellement pour ajouter un sujet PFA.",
+    // Vérification du rôle de l'utilisateur connecté
+    if (req.auth.role !== "enseignant") {
+      return res.status(403).json({
+        message: "Accès interdit : seul un enseignant peut déposer un sujet.",
       });
     }
 
-    // Vérifier la validité de estBinome
-    if (estBinome && (!etudiant1 || !etudiant2)) {
-      return res.status(400).json({
-        message:
-          "Pour un binôme, les noms des deux étudiants (etudiant1, etudiant2) sont requis.",
-      });
-    }
-
-    // Vérifier la validité pour un monôme
-    if (!estBinome && !etudiant1) {
-      return res.status(400).json({
-        message: "Pour un monôme, le nom de l'étudiant (etudiant1) est requis.",
-      });
-    }
-
-    // Vérifier la présence de l'identifiant de l'enseignant
-    //if (!enseignantId) {
-    //return res.status(400).json({
-    //message: "L'identifiant de l'enseignant (enseignantId) est requis.",
-    //});
-    //}
-
-    // Préparer l'enregistrement du sujet PFA
+    // Création d'un sujet PFA
     const nouveauPfa = new Pfa({
       titreSujet,
       description,
       technologies,
       estBinome,
-      natureSujet: estBinome ? "Binôme" : "Monôme",
-      etatDepot: "non rejecté",
-      etatAffectation,
-      status,
-      //enseignant: enseignantId, // Associer l'enseignant au sujet
+      enseignant: req.auth.userId, // Associer l'enseignant connecté
     });
 
-    // Ajouter les noms des étudiants si fournis
-    if (etudiant1) nouveauPfa.etudiant1 = etudiant1;
-    if (etudiant2) nouveauPfa.etudiant2 = etudiant2;
-
-    // Enregistrer le nouveau sujet PFA
+    // Sauvegarde du sujet PFA
     await nouveauPfa.save();
+
+    // Utilisation de populate pour inclure les informations de l'enseignant
+    const sujetAvecEnseignant = await Pfa.findById(nouveauPfa._id).populate(
+      "enseignant"
+    );
 
     res.status(201).json({
       message: "Sujet PFA ajouté avec succès.",
-      Pfa: nouveauPfa,
+      sujet: sujetAvecEnseignant,
     });
   } catch (error) {
-    console.error("Erreur lors de l'ajout d'un sujet PFA :", error.message);
+    console.error("Erreur :", error.message);
+    res.status(500).json({ message: "Erreur serveur." });
+  }
+};
+
+export const getAllPfasByTeacher = async (req, res) => {
+  try {
+    // Vérification du rôle de l'utilisateur
+    if (req.auth.role !== "enseignant") {
+      return res.status(403).json({
+        message: "Accès interdit : uniquement accessible aux enseignants.",
+      });
+    }
+
+    // Récupérer tous les sujets PFA déposés par l'enseignant connecté
+    const sujets = await Pfa.find({ enseignant: req.auth.userId })
+      .populate("enseignant", "nom prenom adresseEmail") // Inclut les détails de l'enseignant
+      .exec();
+
+    // Vérifier si des sujets ont été trouvés
+    if (!sujets || sujets.length === 0) {
+      return res.status(404).json({
+        message: "Aucun sujet PFA trouvé pour cet enseignant.",
+      });
+    }
+
+    // Retourner les informations des sujets
+    res.status(200).json({
+      message: "Tous les sujets PFA déposés par l'enseignant.",
+      sujets,
+    });
+  } catch (error) {
+    console.error("Erreur lors de la récupération des sujets PFA :", error);
+    res.status(500).json({
+      message: "Erreur serveur. Veuillez réessayer plus tard.",
+    });
+  }
+};
+
+export const getPfaByIdForTeacher = async (req, res) => {
+  try {
+    const { id } = req.params; // Récupérer l'ID du sujet depuis les paramètres de la requête
+
+    // Vérification du rôle de l'utilisateur
+    if (req.auth.role !== "enseignant") {
+      return res.status(403).json({
+        message: "Accès interdit : uniquement accessible aux enseignants.",
+      });
+    }
+
+    // Rechercher le sujet PFA par ID
+    const sujet = await Pfa.findById(id)
+      .populate("enseignant", "nom prenom adresseEmail") // Inclut les détails de l'enseignant
+      .exec();
+
+    // Vérifier si le sujet existe
+    if (!sujet) {
+      return res.status(404).json({
+        message: "Sujet PFA introuvable.",
+      });
+    }
+
+    // Vérifier si le sujet appartient à l'enseignant connecté
+    if (sujet.enseignant._id.toString() !== req.auth.userId) {
+      return res.status(403).json({
+        message: "Accès interdit : ce sujet ne vous appartient pas.",
+      });
+    }
+
+    // Retourner les informations sur le sujet
+    res.status(200).json({
+      message: "Informations sur le sujet PFA.",
+      sujet,
+    });
+  } catch (error) {
+    console.error("Erreur lors de la récupération du sujet PFA :", error);
+    res.status(500).json({
+      message: "Erreur serveur. Veuillez réessayer plus tard.",
+    });
+  }
+};
+
+// Contrôleur pour modifier un sujet PFA
+export const modifyPfaSubject = async (req, res) => {
+  try {
+    const { id } = req.params; // Récupérer l'ID du sujet depuis les paramètres de la requête
+    const { titreSujet, description, technologies, estBinome } = req.body;
+
+    // Vérification du rôle de l'utilisateur (doit être enseignant)
+    if (req.auth.role !== "enseignant") {
+      return res.status(403).json({
+        message: "Accès interdit : uniquement accessible aux enseignants.",
+      });
+    }
+
+    // Rechercher le sujet PFA par ID
+    const sujet = await Pfa.findById(id);
+
+    // Vérifier si le sujet existe
+    if (!sujet) {
+      return res.status(404).json({
+        message: "Sujet PFA introuvable.",
+      });
+    }
+
+    // Vérifier si le sujet appartient à l'enseignant connecté
+    if (sujet.enseignant.toString() !== req.auth.userId) {
+      return res.status(403).json({
+        message: "Accès interdit : ce sujet ne vous appartient pas.",
+      });
+    }
+
+    // Vérifier si la période a déjà commencé et que les dates sont dépassées
+    const periodePfa = await Periode.findOne({ Nom: "PFA" });
+
+    if (periodePfa && new Date() >= new Date(periodePfa.Date_Fin)) {
+      return res.status(400).json({
+        message: "Le délai de modification est dépassé.",
+      });
+    }
+
+    // Mettre à jour les informations du sujet PFA
+    if (titreSujet) sujet.titreSujet = titreSujet;
+    if (description) sujet.description = description;
+    if (technologies) sujet.technologies = technologies;
+    if (estBinome !== undefined) sujet.estBinome = estBinome;
+
+    await sujet.save(); // Sauvegarder les modifications
+
+    res.status(200).json({
+      message: "Sujet PFA modifié avec succès.",
+      sujet,
+    });
+  } catch (error) {
+    console.error(
+      "Erreur lors de la modification du sujet PFA :",
+      error.message
+    );
+    res.status(500).json({
+      message: "Erreur serveur. Veuillez réessayer plus tard.",
+    });
+  }
+};
+
+// Contrôleur pour supprimer un sujet PFA
+export const deletePfa = async (req, res) => {
+  try {
+    const { id } = req.params; // Récupérer l'ID du sujet depuis les paramètres
+
+    // Vérification du rôle de l'utilisateur
+    if (req.auth.role !== "enseignant") {
+      return res.status(403).json({
+        message: "Accès interdit : seul un enseignant peut supprimer un sujet.",
+      });
+    }
+
+    // Recherche du sujet PFA par ID
+    const sujet = await Pfa.findById(id);
+
+    // Vérification si le sujet existe
+    if (!sujet) {
+      return res.status(404).json({
+        message: "Sujet PFA introuvable.",
+      });
+    }
+
+    // Vérifier si le sujet appartient à l'enseignant connecté
+    if (sujet.enseignant._id.toString() !== req.auth.userId) {
+      return res.status(403).json({
+        message: "Accès interdit : ce sujet ne vous appartient pas.",
+      });
+    }
+
+    // Vérification de la période de dépôt pour voir si le délai est dépassé
+    const periode = await Periode.findOne({ Nom: "PFA" });
+
+    if (!periode) {
+      return res.status(404).json({
+        message: "Aucune période de dépôt PFA trouvée.",
+      });
+    }
+
+    const currentDate = new Date();
+    if (currentDate > periode.Date_Fin) {
+      return res.status(400).json({
+        message: "Le délai de suppression est dépassé.",
+      });
+    }
+
+    // Suppression du sujet
+    await Pfa.findByIdAndDelete(id);
+
+    res.status(200).json({
+      message: "Sujet PFA supprimé avec succès.",
+    });
+  } catch (error) {
+    console.error(
+      "Erreur lors de la suppression du sujet PFA :",
+      error.message
+    );
     res.status(500).json({
       message: "Erreur serveur. Veuillez réessayer plus tard.",
     });

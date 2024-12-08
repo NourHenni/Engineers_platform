@@ -9,34 +9,38 @@ const pfaSchema = new mongoose.Schema(
     },
     natureSujet: {
       type: String,
-      required: true,
     },
     description: { type: String, required: true },
     technologies: { type: [String], required: true },
     estBinome: { type: Boolean, required: false },
     etatDepot: {
       type: String,
-      enum: ["rejecté", "non rejecté"],
+      enum: ["rejected", "not rejected"],
       required: false,
-      default: "non rejecté",
+      default: "not rejected",
     },
     etatAffectation: {
       type: String,
-      enum: ["affecté", "non affecté"],
+      enum: ["affected", "not affected"],
       required: false,
     },
-    status: { type: String, enum: ["validé", "non validé"], required: false },
+    status: { type: String, enum: ["valided", "not valided"], required: false },
     raison: {
       type: String,
       validate: {
         validator: function (value) {
-          if (this.status === "non validé") {
+          if (this.status === "not valided") {
             return value && value.trim().length > 0; // Raison doit être non vide
           }
-          return true; // Si status n'est pas "non validé", raison peut être vide
+          return true;
         },
         message: "Le champ 'raison' est requis si le statut est 'non validé'.",
       },
+    },
+    enseignant: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User", // Référence au modèle `User`
+      required: true,
     },
   },
   {
