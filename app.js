@@ -18,7 +18,7 @@ app.use(cors()); // Enable CORS middleware
 app.use(express.json()); // Enable middleware for parsing JSON
 
 // Routes
-app.use("/api", userRoutes);
+app.use("/", userRoutes);
 app.use("/api/pfa", authMiddleware, pfaRoutes);
 
 // Function to connect database, seed, and start the server
