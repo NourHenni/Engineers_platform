@@ -2,12 +2,16 @@ import express from "express";
 import mongoose from "mongoose";
 import cors from "cors";
 import dotenv from "dotenv";
-import "./cronjobs.js";
 import userRoutes from "./routes/UserRoute.js";
 import pfaRoutes from "./routes/pfaRoute.js";
 import matiereRoute from "./routes/matiereRoute.js";
 import competenceRoute from "./routes/competenceRoute.js";
 import { seedDatabase } from "./config/seed.js";
+import "./template/cronjobs.js"
+
+
+import { authMiddleware } from "./middellwares/authMiddellware.js";
+
 
 const app = express();
 
@@ -20,10 +24,16 @@ app.use(express.json()); // Enable middleware for parsing JSON
 
 // Routes
 
-app.use("/", userRoutes);
-app.use("/api/pfa", pfaRoutes);
+
 app.use("/api", competenceRoute);
 app.use("/matieres", matiereRoute);
+
+
+
+app.use("/", userRoutes);
+app.use("/api/pfa", authMiddleware, pfaRoutes);
+
+
 
 // Function to connect database, seed, and start the server
 const startServer = async () => {

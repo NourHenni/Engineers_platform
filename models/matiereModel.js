@@ -85,6 +85,15 @@ const matiereSchema = mongoose.Schema({
       ref: "competences",
       required: false,
     },
+
+  
   ],
+  enseignant:[ {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "User", // Référence au modèle User
+    required: true,
+  },
+]
 });
+
 export default mongoose.model("matieres", matiereSchema);

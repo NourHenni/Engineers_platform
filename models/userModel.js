@@ -29,10 +29,18 @@ const userSchema = new mongoose.Schema(
       enum: ["etudiant", "enseignant", "admin"],
       required: true,
     },
+    dateDeNaissance: {
+      type: Date, // Using Date type for storing dates
+      required: true, // Assuming it is mandatory
+    },
+    archivee: {
+      type: Boolean, // Boolean type to indicate true or false
+      default: false, // Default value is set to false
+    },
   },
   {
     timestamps: true,
-  } 
+  }
 );
 
 export default mongoose.model("User", userSchema);
