@@ -11,6 +11,7 @@ const defaultUsers = [
     adresseEmail: "admin@example.com",
     password: "admin123", // Plaintext password
     role: "admin",
+    dateDeNaissance: "1980-01-01", // Add birthdate for admin
   },
   {
     nom: "Teacher",
@@ -19,6 +20,7 @@ const defaultUsers = [
     adresseEmail: "teacher@example.com",
     password: "teacher123", // Plaintext password
     role: "enseignant",
+    dateDeNaissance: "1985-02-14", // Add birthdate for teacher
   },
   {
     nom: "Student",
@@ -27,6 +29,7 @@ const defaultUsers = [
     adresseEmail: "student@example.com",
     password: "student123", // Plaintext password
     role: "etudiant",
+    dateDeNaissance: "2000-06-15", // Add birthdate for student
   },
 ];
 
@@ -40,7 +43,7 @@ export const seedDatabase = async () => {
       if (!existingUser) {
         // Hash the password
         const hashedPassword = await bcrypt.hash(userData.password, 10);
-        // Create the user
+        // Create the user with the added dateDeNaissance field
         const user = new User({ ...userData, password: hashedPassword });
         await user.save();
         console.log(`User ${userData.adresseEmail} created successfully`);

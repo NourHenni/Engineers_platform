@@ -18,3 +18,16 @@ const hasRole = (role) => {
 export const isAdmin = hasRole("admin");
 export const isEnseignant = hasRole("enseignant");
 export const isEtudiant = hasRole("etudiant");
+
+export const isAdminOrStudent = (req, res, next) => {
+  const userRole = req.auth.role;
+
+  if (userRole === "admin" || userRole === "etudiant") {
+    return next();
+  }
+
+  return res.status(403).json({
+    success: false,
+    message: "Accès refusé : Vous devez être admin ou étudiant.",
+  });
+};

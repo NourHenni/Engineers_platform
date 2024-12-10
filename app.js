@@ -6,6 +6,7 @@ import userRoutes from "./routes/UserRoute.js";
 import pfaRoutes from "./routes/pfaRoute.js";
 //import sujetRoutes from "./routes/pfaRoute.js";
 import { seedDatabase } from "./config/seed.js";
+import { authMiddleware } from "./middellwares/authMiddellware.js";
 
 const app = express(); // Create the Express application
 
@@ -17,9 +18,15 @@ app.use(cors()); // Enable CORS middleware
 app.use(express.json()); // Enable middleware for parsing JSON
 
 // Routes
-app.use("/api", userRoutes);
-app.use("/api/pfa", pfaRoutes);
-//app.use("/api/pfa", sujetRoutes);
+
+
+
+
+app.use("/", userRoutes);
+app.use("/api/pfa", authMiddleware, pfaRoutes);
+
+
+
 // Function to connect database, seed, and start the server
 const startServer = async () => {
   try {
