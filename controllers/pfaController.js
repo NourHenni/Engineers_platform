@@ -440,8 +440,12 @@ export const getPfasByTeacherForStudents = async (req, res) => {
       })
     );
 
-    // Vérification si des sujets existent
-    if (!sujetsParEnseignant || sujetsParEnseignant.length === 0) {
+    // Vérification si tous les sujets sont vides
+    const enseignantsAvecSujets = sujetsParEnseignant.filter(
+      (enseignant) => enseignant.sujets.length > 0
+    );
+
+    if (enseignantsAvecSujets.length === 0) {
       return res.status(404).json({
         message: "Aucun sujet PFA trouvé.",
       });
@@ -450,7 +454,7 @@ export const getPfasByTeacherForStudents = async (req, res) => {
     // Retourner les informations des sujets PFA groupées par enseignant
     res.status(200).json({
       message: "Liste des sujets PFA par enseignant.",
-      data: sujetsParEnseignant,
+      data: enseignantsAvecSujets,
     });
   } catch (error) {
     console.error("Erreur lors de la récupération des sujets PFA :", error);
