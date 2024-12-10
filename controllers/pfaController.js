@@ -164,13 +164,7 @@ export const updateDelais = async (req, res) => {
 
 export const ajouterSujetPfa = async (req, res) => {
   try {
-    const {
-      titreSujet,
-      description,
-      technologies,
-      estBinome,
-      etatAffectation,
-    } = req.body;
+    const { titreSujet, description, technologies, estBinome } = req.body;
 
     // Vérification des données
     if (!titreSujet || !description || !technologies) {
@@ -184,18 +178,31 @@ export const ajouterSujetPfa = async (req, res) => {
       });
     }
 
+    // Générer un code PFA unique à partir du titre
+    const generateCodePfa = (titre) => {
+      const cleanTitle = titre
+        .toLowerCase()
+        .replace(/[^a-z0-9]/g, "") // Retirer les caractères spéciaux
+        .slice(0, 10); // Limiter à 10 caractères
+      const uniqueSuffix = Date.now().toString().slice(-5); // Ajouter une partie unique (5 derniers chiffres de l'horodatage)
+      return `${cleanTitle}-${uniqueSuffix}`;
+    };
+
+    const codePfa = generateCodePfa(titreSujet);
+
     // Création d'un sujet PFA
     const nouveauPfa = new Pfa({
+      code_pfa: codePfa, // Ajouter le code PFA généré
       titreSujet,
       description,
       technologies,
       estBinome,
-      etatAffectation,
       enseignant: req.auth.userId, // Associer l'enseignant connecté
     });
 
     // Sauvegarde du sujet PFA
     await nouveauPfa.save();
+    ////// manque de génerer un code pfa a  partir du titre
 
     // Utilisation de populate pour inclure les informations de l'enseignant
     const sujetAvecEnseignant = await Pfa.findById(nouveauPfa._id).populate(
@@ -236,7 +243,7 @@ export const getAllPfasByTeacher = async (req, res) => {
     // Retourner les informations des sujets
     res.status(200).json({
       message: "Tous les sujets PFA déposés par l'enseignant.",
-      sujets,
+      sujets, // juste afficher les coordonnées du sujets PFA sans les informations de l'enseignant
     });
   } catch (error) {
     console.error("Erreur lors de la récupération des sujets PFA :", error);
