@@ -178,14 +178,19 @@ export const ajouterSujetPfa = async (req, res) => {
       });
     }
 
-    // Générer un code PFA unique sous forme d'un nombre entre 1 et 60
-    const generateCodePfa = () => {
-      const randomCode = Math.floor(Math.random() * 60) + 1; // Générer un nombre aléatoire entre 1 et 60
-      return randomCode;
+    // Générer un code PFA incrémental
+    const generateCodePfa = async () => {
+      const lastPfa = await Pfa.findOne().sort({ _id: -1 }); // Récupérer le dernier sujet ajouté
+      if (lastPfa && lastPfa.code_pfa) {
+        const lastIdNumber = parseInt(lastPfa.code_pfa.replace("pfa", ""), 10); // Extraire le numéro
+        return `pfa${lastIdNumber + 1}`; // Incrémenter pour générer le nouveau code
+      } else {
+        return "pfa1"; // Premier code si aucun sujet n'existe encore
+      }
     };
 
     // Exemple d'utilisation
-    const codePfa = generateCodePfa(); // Appel pour générer le code PFA
+    const codePfa = await generateCodePfa(); // Appel pour générer le code PFA
 
     // Création d'un sujet PFA
     const nouveauPfa = new Pfa({
