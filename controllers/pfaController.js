@@ -178,17 +178,14 @@ export const ajouterSujetPfa = async (req, res) => {
       });
     }
 
-    // Générer un code PFA unique à partir du titre
-    const generateCodePfa = (titre) => {
-      const cleanTitle = titre
-        .toLowerCase()
-        .replace(/[^a-z0-9]/g, "") // Retirer les caractères spéciaux
-        .slice(0, 10); // Limiter à 10 caractères
-      const uniqueSuffix = Date.now().toString().slice(-5); // Ajouter une partie unique (5 derniers chiffres de l'horodatage)
-      return `${cleanTitle}-${uniqueSuffix}`;
+    // Générer un code PFA unique sous forme d'un nombre entre 1 et 60
+    const generateCodePfa = () => {
+      const randomCode = Math.floor(Math.random() * 60) + 1; // Générer un nombre aléatoire entre 1 et 60
+      return randomCode;
     };
 
-    const codePfa = generateCodePfa(titreSujet);
+    // Exemple d'utilisation
+    const codePfa = generateCodePfa(); // Appel pour générer le code PFA
 
     // Création d'un sujet PFA
     const nouveauPfa = new Pfa({
