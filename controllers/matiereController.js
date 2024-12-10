@@ -126,5 +126,5 @@ export const getMatieresByEnseignant = async (req, res) => {
 };
 export default { createMatiere, getMatieres, getMatieresByEnseignant };
 
-};
+
 
