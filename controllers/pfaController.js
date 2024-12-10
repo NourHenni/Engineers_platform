@@ -177,21 +177,22 @@ export const ajouterSujetPfa = async (req, res) => {
         message: "Accès interdit : seul un enseignant peut déposer un sujet.",
       });
     }
-
-    // Générer un code PFA incrémental
+    // Générer un code PFA au format PFA2024-01
     const generateCodePfa = async () => {
-      const lastPfa = await Pfa.findOne().sort({ _id: -1 }); // Récupérer le dernier sujet ajouté
+      const currentYear = new Date().getFullYear(); // Année actuelle
+      const lastPfa = await Pfa.findOne().sort({ _id: -1 }); // Dernier sujet enregistré
+
       if (lastPfa && lastPfa.code_pfa) {
-        const lastIdNumber = parseInt(lastPfa.code_pfa.replace("pfa", ""), 10); // Extraire le numéro
-        return `pfa${lastIdNumber + 1}`; // Incrémenter pour générer le nouveau code
+        const parts = lastPfa.code_pfa.split("-");
+        const lastIdNumber = parts.length > 1 ? parseInt(parts[1], 10) : 0; // Extraire le numéro (ou 0 si non valide)
+        const nextIdNumber = isNaN(lastIdNumber) ? 1 : lastIdNumber + 1; // Gérer NaN et incrémenter correctement
+        return `PFA${currentYear}-${String(nextIdNumber).padStart(2, "0")}`; // Générer un code formaté
       } else {
-        return "pfa1"; // Premier code si aucun sujet n'existe encore
+        return `PFA${currentYear}-01`; // Premier code si aucun sujet n'existe
       }
     };
 
-    // Exemple d'utilisation
     const codePfa = await generateCodePfa(); // Appel pour générer le code PFA
-
     // Création d'un sujet PFA
     const nouveauPfa = new Pfa({
       code_pfa: codePfa, // Ajouter le code PFA généré
