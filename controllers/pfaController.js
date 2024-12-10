@@ -202,7 +202,6 @@ export const ajouterSujetPfa = async (req, res) => {
 
     // Sauvegarde du sujet PFA
     await nouveauPfa.save();
-    ////// manque de génerer un code pfa a  partir du titre
 
     // Utilisation de populate pour inclure les informations de l'enseignant
     const sujetAvecEnseignant = await Pfa.findById(nouveauPfa._id).populate(
