@@ -2,12 +2,13 @@ import express from "express";
 import mongoose from "mongoose";
 import cors from "cors";
 import dotenv from "dotenv";
-import "./cronjobs.js";
 import userRoutes from "./routes/UserRoute.js";
 import pfaRoutes from "./routes/pfaRoute.js";
 import matiereRoute from "./routes/matiereRoute.js";
 import competenceRoute from "./routes/competenceRoute.js";
 import { seedDatabase } from "./config/seed.js";
+import "./template/cronjobs.js"
+
 
 const app = express();
 
