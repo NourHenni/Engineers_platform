@@ -9,9 +9,10 @@ import {
   getPfaByIdForTeacher,
   modifyPfaSubject,
   deletePfa,
+  getPfasByTeacherForStudents,
 } from "../controllers/pfaController.js";
 import { authMiddleware } from "../middellwares/authMiddellware.js";
-import { isAdmin } from "../middellwares/roleMiddellware.js";
+import { isAdmin, isEtudiant } from "../middellwares/roleMiddellware.js";
 import { isEnseignant } from "../middellwares/roleMiddellware.js";
 const router = express.Router();
 
@@ -24,4 +25,6 @@ router.get("/mine", authMiddleware, isEnseignant, getAllPfasByTeacher);
 router.get("/:id/mine", authMiddleware, isEnseignant, getPfaByIdForTeacher);
 router.patch("/:id/mine", authMiddleware, isEnseignant, modifyPfaSubject);
 router.delete("/:id", authMiddleware, isEnseignant, deletePfa);
+router.get("/", authMiddleware, isEtudiant, getPfasByTeacherForStudents);
+
 export default router;

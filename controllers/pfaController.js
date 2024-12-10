@@ -164,7 +164,13 @@ export const updateDelais = async (req, res) => {
 
 export const ajouterSujetPfa = async (req, res) => {
   try {
-    const { titreSujet, description, technologies, estBinome } = req.body;
+    const {
+      titreSujet,
+      description,
+      technologies,
+      estBinome,
+      etatAffectation,
+    } = req.body;
 
     // Vérification des données
     if (!titreSujet || !description || !technologies) {
@@ -184,6 +190,7 @@ export const ajouterSujetPfa = async (req, res) => {
       description,
       technologies,
       estBinome,
+      etatAffectation,
       enseignant: req.auth.userId, // Associer l'enseignant connecté
     });
 
@@ -400,6 +407,53 @@ export const deletePfa = async (req, res) => {
       "Erreur lors de la suppression du sujet PFA :",
       error.message
     );
+    res.status(500).json({
+      message: "Erreur serveur. Veuillez réessayer plus tard.",
+    });
+  }
+};
+
+export const getPfasByTeacherForStudents = async (req, res) => {
+  try {
+    // Vérification du rôle de l'utilisateur (doit être étudiant)
+    if (req.auth.role !== "etudiant") {
+      return res.status(403).json({
+        message: "Accès interdit : uniquement accessible aux étudiants.",
+      });
+    }
+
+    // Récupérer tous les enseignants ayant proposé des sujets PFA
+    const enseignants = await userModel
+      .find({ role: "enseignant" })
+      .select("_id nom prenom adresseEmail");
+
+    // Récupérer les sujets PFA par enseignant
+    const sujetsParEnseignant = await Promise.all(
+      enseignants.map(async (enseignant) => {
+        const sujets = await Pfa.find({ enseignant: enseignant._id }).select(
+          "titreSujet description technologies estBinome etatAffectation"
+        );
+        return {
+          enseignant,
+          sujets,
+        };
+      })
+    );
+
+    // Vérification si des sujets existent
+    if (!sujetsParEnseignant || sujetsParEnseignant.length === 0) {
+      return res.status(404).json({
+        message: "Aucun sujet PFA trouvé.",
+      });
+    }
+
+    // Retourner les informations des sujets PFA groupées par enseignant
+    res.status(200).json({
+      message: "Liste des sujets PFA par enseignant.",
+      data: sujetsParEnseignant,
+    });
+  } catch (error) {
+    console.error("Erreur lors de la récupération des sujets PFA :", error);
     res.status(500).json({
       message: "Erreur serveur. Veuillez réessayer plus tard.",
     });
