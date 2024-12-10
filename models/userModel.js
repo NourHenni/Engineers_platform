@@ -29,10 +29,13 @@ const userSchema = new mongoose.Schema(
       enum: ["etudiant", "enseignant", "admin"],
       required: true,
     },
+    isFirstSend: { type: Boolean, default: false },
+    niveau: { type: String, enum: ["1ING", "2ING", "3ING"] },
   },
+
   {
     timestamps: true,
-  } 
+  }
 );
 
 export default mongoose.model("User", userSchema);

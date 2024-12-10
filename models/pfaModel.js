@@ -14,6 +14,31 @@ const pfaSchema = new mongoose.Schema(
     description: { type: String, required: false },
     technologies: { type: String, required: false },
     estBinome: { type: Boolean, required: false },
+    //etudiant_id: [{ type: mongoose.Schema.Types.ObjectId, ref: "etudiant" }], // Étudiants affectés
+
+    // Gestion des choix des sujets
+    choices: [
+      {
+        etudiantId: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "etudiant",
+          required: true,
+        }, // Étudiant principal
+        binomeId: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "etudiant",
+          required: false,
+        }, // Binôme si applicable
+        priority: {
+          type: Number,
+          validate: {
+            validator: (value) => [1, 2, 3].includes(value),
+            message: "Priority must be 1, 2, or 3.",
+          },
+        },
+      },
+    ],
+
     etatDepot: {
       type: String,
       enum: ["rejected", "not rejected"],
@@ -25,7 +50,6 @@ const pfaSchema = new mongoose.Schema(
       enum: ["affected", "not affected"],
       required: false,
     },
-    period_pfa: { type: mongoose.Schema.Types.ObjectId, ref: "Periode" },
     status: { type: String, enum: ["valid", "not valid"], required: false },
     raison: {
       type: String,
@@ -34,7 +58,7 @@ const pfaSchema = new mongoose.Schema(
           if (this.status === "not valid") {
             return value && value.trim().length > 0;
           }
-          return true; // Si status n'est pas "non validé", raison peut être vide
+          return true;
         },
         message: "Le champ 'raison' est requis si le statut est 'non validé'.",
       },

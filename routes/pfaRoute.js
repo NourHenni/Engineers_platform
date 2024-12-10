@@ -8,6 +8,8 @@ import {
   changeState,
   publishPfas,
   addPeriod,
+  sendListePfa,
+  fetchPublishedPfa,
 } from "../controllers/pfaController.js";
 
 import {
@@ -22,6 +24,8 @@ router.get("/getPfas", isAdmin, fetchPfas);
 router.get("/getPfas/:idPFA", isAdminOrStudent, fecthPfaById);
 router.patch("/ChangeStatePFA/:idPFA", isAdmin, changeState);
 router.patch("/publish/:response", isAdmin, publishPfas);
+router.get("/getPublishedPfas", isEtudiant, fetchPublishedPfa);
+router.post("/list/send", isAdmin, sendListePfa);
 router.post("/open", addPeriod);
 router.get("/open", getPeriodes);
 router.patch("/open", updateDelais);
