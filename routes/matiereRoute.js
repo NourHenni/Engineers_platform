@@ -6,10 +6,19 @@ const router = express.Router();
 
 
 // Routes CRUD
+
+router.post("/", matiereController.createMatiere);
+router.get("/", matiereController.getMatieres);
+router.get(
+  "/enseignants/:enseignantId/matieres",
+  matiereController.getMatieresByEnseignant
+);
+
 router.post("/", createMatiere);
 router.get("/getmatieres",authMiddleware,isAdmin, getMatieres);
 router.get("/getmatieres/:id",authMiddleware,isEnseignantOrEtudiant, getMatieres);
 router.post("/publish/:response",authMiddleware, isAdmin,publishOrHideMatieres);
+
 
 
 

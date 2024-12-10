@@ -1,4 +1,7 @@
 import Matiere from "../models/matiereModel.js";
+
+import nodemailer from "nodemailer";
+
 import User from "../models/userModel.js";
 
 // Créer une nouvelle matière
@@ -92,7 +95,7 @@ export const publishOrHideMatieres = async (req, res) => {
   }
 };*/
 
-/*export const getMatieresByEnseignant = async (req, res) => {
+export const getMatieresByEnseignant = async (req, res) => {
   try {
     // Récupérer l'ID de l'utilisateur connecté depuis le middleware d'authentification
     const enseignantId = req.params.id;
@@ -120,4 +123,8 @@ export const publishOrHideMatieres = async (req, res) => {
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
-};*/
+};
+export default { createMatiere, getMatieres, getMatieresByEnseignant };
+
+};
+

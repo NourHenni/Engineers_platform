@@ -8,15 +8,15 @@ import {
   createCompetence,
   getCompetences,
   getCompetenceById,
+  updateCompetence,
+  deleteCompetence,
 } from "../controllers/competenceController.js";
 
 // Routes CRUD
 router.post("/competences", createCompetence);
 router.get(
   "/competences",
-  authMiddleware,
-  isAdmin,
-  isEnseignant,
+
   getCompetences
 );
 router.get(
@@ -24,5 +24,7 @@ router.get(
 
   getCompetenceById
 );
+router.patch("/competences/:id", updateCompetence);
+router.delete("/competences/:id", deleteCompetence);
 
 export default router;

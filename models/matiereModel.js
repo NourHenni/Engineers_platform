@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import User from "../models/userModel.js";
 
 // Section Schema
 const sectionSchema = new mongoose.Schema({
