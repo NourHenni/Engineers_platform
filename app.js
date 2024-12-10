@@ -10,6 +10,9 @@ import { seedDatabase } from "./config/seed.js";
 import "./template/cronjobs.js"
 
 
+import { authMiddleware } from "./middellwares/authMiddellware.js";
+
+
 const app = express();
 
 // Config
@@ -21,10 +24,16 @@ app.use(express.json()); // Enable middleware for parsing JSON
 
 // Routes
 
-app.use("/", userRoutes);
-app.use("/api/pfa", pfaRoutes);
+
 app.use("/api", competenceRoute);
 app.use("/matieres", matiereRoute);
+
+
+
+app.use("/", userRoutes);
+app.use("/api/pfa", authMiddleware, pfaRoutes);
+
+
 
 // Function to connect database, seed, and start the server
 const startServer = async () => {
