@@ -41,6 +41,7 @@ const competenceSchema = new mongoose.Schema({
     required: true,
   },
   matieres: [{ type: mongoose.Schema.Types.ObjectId, ref: "matieres" }],
+  archived: { type: Boolean, default: false }, // Champ pour archiver
 });
 
 export default mongoose.model("competences ", competenceSchema);

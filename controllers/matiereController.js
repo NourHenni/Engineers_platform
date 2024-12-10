@@ -1,4 +1,6 @@
 import Matiere from "../models/matiereModel.js";
+import nodemailer from "nodemailer";
+import User from "../models/userModel.js";
 
 // Créer une nouvelle matière
 export const createMatiere = async (req, res) => {
@@ -47,5 +49,4 @@ export const getMatieresByEnseignant = async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 };
-
 export default { createMatiere, getMatieres, getMatieresByEnseignant };
