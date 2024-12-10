@@ -4,11 +4,16 @@ import cors from "cors";
 import dotenv from "dotenv";
 import userRoutes from "./routes/UserRoute.js";
 import pfaRoutes from "./routes/pfaRoute.js";
-//import sujetRoutes from "./routes/pfaRoute.js";
+import matiereRoute from "./routes/matiereRoute.js";
+import competenceRoute from "./routes/competenceRoute.js";
 import { seedDatabase } from "./config/seed.js";
+import "./template/cronjobs.js"
+
+
 import { authMiddleware } from "./middellwares/authMiddellware.js";
 
-const app = express(); // Create the Express application
+
+const app = express();
 
 // Config
 dotenv.config();
@@ -19,6 +24,9 @@ app.use(express.json()); // Enable middleware for parsing JSON
 
 // Routes
 
+
+app.use("/api", competenceRoute);
+app.use("/matieres", matiereRoute);
 
 
 
