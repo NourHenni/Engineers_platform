@@ -4,7 +4,7 @@ import cors from "cors";
 import dotenv from "dotenv";
 import userRoutes from "./routes/UserRoute.js";
 import pfaRoutes from "./routes/pfaRoute.js";
-
+//import sujetRoutes from "./routes/pfaRoute.js";
 import { seedDatabase } from "./config/seed.js";
 import { authMiddleware } from "./middellwares/authMiddellware.js";
 
@@ -18,8 +18,13 @@ app.use(cors()); // Enable CORS middleware
 app.use(express.json()); // Enable middleware for parsing JSON
 
 // Routes
+
+
+
+
 app.use("/", userRoutes);
 app.use("/api/pfa", authMiddleware, pfaRoutes);
+
 
 
 // Function to connect database, seed, and start the server
