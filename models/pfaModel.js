@@ -11,27 +11,28 @@ const pfaSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
-    description: { type: String, required: true },
-    technologies: { type: String, required: true },
+    description: { type: String, required: false },
+    technologies: { type: String, required: false },
     estBinome: { type: Boolean, required: false },
     etatDepot: {
       type: String,
-      enum: ["rejecté", "non rejecté"],
-      required: false,
-      default: "non rejecté",
+      enum: ["rejected", "not rejected"],
+      required: true,
+      default: "not rejected",
     },
     etatAffectation: {
       type: String,
-      enum: ["affecté", "non affecté"],
+      enum: ["affected", "not affected"],
       required: false,
     },
-    status: { type: String, enum: ["validé", "non validé"], required: false },
+    period_pfa: { type: mongoose.Schema.Types.ObjectId, ref: "Periode" },
+    status: { type: String, enum: ["valid", "not valid"], required: false },
     raison: {
       type: String,
       validate: {
         validator: function (value) {
-          if (this.status === "non validé") {
-            return value && value.trim().length > 0; // Raison doit être non vide
+          if (this.status === "not valid") {
+            return value && value.trim().length > 0;
           }
           return true; // Si status n'est pas "non validé", raison peut être vide
         },
