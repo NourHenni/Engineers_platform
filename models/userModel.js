@@ -29,6 +29,10 @@ const userSchema = new mongoose.Schema(
       enum: ["etudiant", "enseignant", "admin"],
       required: true,
     },
+    numMatieres: {
+      type: Number,
+      default: 0, // Nombre de matières enseignées (uniquement pour les enseignants)
+    },
   },
   {
     timestamps: true,

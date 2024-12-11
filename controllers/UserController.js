@@ -74,3 +74,35 @@ export const getUsers = async (req, res) => {
     });
   }
 };
+
+// GET /teachers
+export const getTeachers = async (req, res) => {
+  try {
+    // Rechercher tous les utilisateurs avec le rôle "enseignant"
+    const teachers = await User.find({ role: "enseignant" }).select(
+      "nom prenom adresseEmail role"
+    );
+
+    // Vérifier s'il y a des enseignants
+    if (!teachers.length) {
+      return res.status(404).json({
+        success: false,
+        message: "Aucun enseignant trouvé.",
+      });
+    }
+
+    // Retourner la liste des enseignants
+    res.status(200).json({
+      success: true,
+      message: "Liste des enseignants récupérée avec succès.",
+      data: teachers,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: "Une erreur est survenue lors de la récupération des enseignants.",
+      error: error.message,
+    });
+  }
+};
+

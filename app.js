@@ -4,6 +4,7 @@ import cors from "cors";
 import dotenv from "dotenv";
 import userRoutes from "./routes/UserRoute.js";
 import { seedDatabase } from "./config/seed.js";
+import stageRoutes from "./routes/stageEteRoute.js"
 
 const app = express(); // Create the Express application
 
@@ -16,6 +17,7 @@ app.use(express.json()); // Enable middleware for parsing JSON
 
 // Routes
 app.use("/api", userRoutes);
+app.use("/api",stageRoutes);
 
 // Function to connect database, seed, and start the server
 const startServer = async () => {
