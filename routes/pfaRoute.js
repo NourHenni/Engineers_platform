@@ -1,7 +1,6 @@
 import express, { Router } from "express";
 import {
   fetchPfas,
-  addPeriode,
   getPeriodes,
   updateDelais,
   fecthPfaById,
