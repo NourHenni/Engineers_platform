@@ -15,6 +15,43 @@ const userSchema = new mongoose.Schema(
       required: true,
       unique: true,
     },
+    genre: {
+      type: String,
+      enum: ["homme", "femme"],
+      required: true,
+    },
+    dateDeNaissance: {
+      type: Date, // Using Date type for storing dates
+      required: true, // Assuming it is mandatory
+    },
+    gouvernorat: {
+      type: String,
+      required: true,
+    },
+    addresse: {
+      type: String,
+      required: true,
+    },
+    ville: {
+      type: String,
+      required: true,
+    },
+    code_postal: {
+      type: Number,
+      required: true,
+    },
+    nationalite: {
+      type: String,
+      required: true,
+    },
+    telephone: {
+      type: Number,
+      required: true,
+    },
+    annee_entree_isamm: {
+      type: Number,
+      required: true,
+    },
     adresseEmail: {
       type: String,
       required: true,
@@ -29,10 +66,29 @@ const userSchema = new mongoose.Schema(
       enum: ["etudiant", "enseignant", "admin"],
       required: true,
     },
+
+    isFirstSend: { type: Boolean, default: false },
+    niveau: { type: String, enum: ["1ING", "2ING", "3ING"] },
+
+    dateDeNaissance: {
+      type: Date, // Using Date type for storing dates
+      required: true, // Assuming it is mandatory
+    },
+    archivee: {
+      type: Boolean, // Boolean type to indicate true or false
+      default: false, // Default value is set to false
+    },
+
+    semestre: {
+      type: String,
+      enum: ["S1", "S2", "S3", "S4", "S5"],
+      required: true,
+    },
   },
+
   {
     timestamps: true,
-  } 
+  }
 );
 
 export default mongoose.model("User", userSchema);
