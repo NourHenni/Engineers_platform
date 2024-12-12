@@ -204,13 +204,8 @@ export const ajouterSujetPfa = async (req, res) => {
 
     // Générer un code PFA au format PFA2024-01
     const generateCodePfa = async () => {
-<<<<<<< HEAD
       const currentYear = new Date().getFullYear(); // Année actuelle
       const lastPfa = await pfaModel.findOne().sort({ _id: -1 }); // Dernier sujet enregistré
-=======
-      const currentYear = new Date().getFullYear();
-      const lastPfa = await Pfa.findOne().sort({ _id: -1 });
->>>>>>> souhir
 
       if (lastPfa && lastPfa.code_pfa) {
         const parts = lastPfa.code_pfa.split("-");
@@ -225,13 +220,8 @@ export const ajouterSujetPfa = async (req, res) => {
     const codePfa = await generateCodePfa();
 
     // Création d'un sujet PFA
-<<<<<<< HEAD
     const nouveauPfa = new pfaModel({
       code_pfa: codePfa, // Ajouter le code PFA généré
-=======
-    const nouveauPfa = new Pfa({
-      code_pfa: codePfa,
->>>>>>> souhir
       titreSujet,
       description,
       technologies,
@@ -243,17 +233,10 @@ export const ajouterSujetPfa = async (req, res) => {
     // Sauvegarde du sujet PFA
     await nouveauPfa.save();
 
-<<<<<<< HEAD
     // Utilisation de populate pour inclure les informations de l'enseignant
     const sujetAvecEnseignant = await pfaModel
       .findById(nouveauPfa._id)
       .populate("enseignant");
-=======
-    // Utilisation de populate pour inclure les informations de l'enseignant et de l'étudiant
-    const sujetAvecDetails = await Pfa.findById(nouveauPfa._id)
-      .populate("enseignant", "nom prenom adresseEmail")
-      .populate("etudiant", "nom prenom");
->>>>>>> souhir
 
     res.status(201).json({
       message: "Sujet PFA ajouté avec succès.",

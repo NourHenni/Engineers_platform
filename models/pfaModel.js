@@ -10,7 +10,6 @@ const pfaSchema = new mongoose.Schema(
     natureSujet: {
       type: String,
     },
-<<<<<<< HEAD
 
     technologies: { type: [String], required: false },
 
@@ -43,20 +42,6 @@ const pfaSchema = new mongoose.Schema(
       },
     ],
 
-=======
-    description: {
-      type: String,
-      required: true,
-    },
-    technologies: {
-      type: [String],
-      required: true,
-    },
-    estBinome: {
-      type: Boolean,
-      required: false,
-    },
->>>>>>> souhir
     etatDepot: {
       type: String,
       enum: ["rejected", "not rejected"],
@@ -71,16 +56,8 @@ const pfaSchema = new mongoose.Schema(
       required: false,
       default: "not affected",
     },
-<<<<<<< HEAD
     status: { type: String, enum: ["valid", "not valid"], required: false },
 
-=======
-    status: {
-      type: String,
-      enum: ["valided", "not valided"],
-      required: false,
-    },
->>>>>>> souhir
     raison: {
       type: String,
       validate: {
