@@ -1,9 +1,5 @@
 import pfaModel from "../models/pfaModel.js";
 import userModel from "../models/userModel.js";
-import Periode from "../models/periodeModel.js";
-
-import User from "../models/userModel.js";
-
 import moment from "moment";
 import periodeModel from "../models/periodeModel.js";
 import nodemailer from "nodemailer";
@@ -66,7 +62,7 @@ export const addPeriod = async (req, res) => {
 export const getPeriodes = async (req, res) => {
   try {
     // Récupérer toutes les périodes depuis la base de données
-    const periodes = await Periode.find();
+    const periodes = await periodeModel.find();
 
     // Vérifier si des périodes existent
     if (!periodes || periodes.length === 0) {
@@ -95,7 +91,7 @@ export const updateDelais = async (req, res) => {
     }
 
     // Recherche de la période spécifique (exemple : "PFA")
-    const periode = await Periode.findOne({ type: "PFA Project" });
+    const periode = await periodeModel.findOne({ type: "PFA Project" });
 
     if (!periode) {
       return res.status(404).json({ error: "Periode introuvable." });
@@ -168,7 +164,7 @@ export const ajouterSujetPfa = async (req, res) => {
     }
 
     // Vérification de la période
-    const periode = await Periode.findOne({ Nom: "PFA" });
+    const periode = await periodeModel.findOne({ Nom: "PFA" });
 
     if (!periode) {
       return res
@@ -187,7 +183,7 @@ export const ajouterSujetPfa = async (req, res) => {
 
     // Si le nom et le prénom de l'étudiant sont fournis, chercher l'étudiant
     if (nomEtudiant && prenomEtudiant) {
-      const etudiant = await User.findOne({
+      const etudiant = await userModel.findOne({
         nom: nomEtudiant,
         prenom: prenomEtudiant,
         role: "etudiant", // Vérifier également que l'utilisateur a le rôle "etudiant"
@@ -358,7 +354,7 @@ export const modifyPfaSubject = async (req, res) => {
     }
 
     // Vérifier si la période a déjà commencé et que les dates sont dépassées
-    const periodePfa = await Periode.findOne({ Nom: "PFA" });
+    const periodePfa = await periodeModel.findOne({ Nom: "PFA" });
 
     if (periodePfa && new Date() >= new Date(periodePfa.Date_Fin)) {
       return res.status(400).json({
@@ -419,7 +415,7 @@ export const deletePfa = async (req, res) => {
     }
 
     // Vérification de la période de dépôt pour voir si le délai est dépassé
-    const periode = await Periode.findOne({ Nom: "PFA" });
+    const periode = await periodeModel.findOne({ Nom: "PFA" });
 
     if (!periode) {
       return res.status(404).json({
