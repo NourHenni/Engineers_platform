@@ -4,10 +4,12 @@ import {
   getMatieres,
   publishOrHideMatieres,
   getMatieresByEnseignant,
+  updateAvancement,
 } from "../controllers/matiereController.js";
 import { authMiddleware } from "../middellwares/authMiddellware.js";
 import {
   isAdmin,
+  isEnseignant,
   isEnseignantOrEtudiant,
 } from "../middellwares/roleMiddellware.js";
 const router = express.Router();
@@ -31,5 +33,5 @@ router.post(
   isAdmin,
   publishOrHideMatieres
 );
-
+router.patch("/:id/avancement", authMiddleware, isEnseignant, updateAvancement);
 export default router;
