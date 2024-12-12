@@ -29,8 +29,19 @@ const userSchema = new mongoose.Schema(
       enum: ["etudiant", "enseignant", "admin"],
       required: true,
     },
+
     isFirstSend: { type: Boolean, default: false },
     niveau: { type: String, enum: ["1ING", "2ING", "3ING"] },
+
+    dateDeNaissance: {
+      type: Date, // Using Date type for storing dates
+      required: true, // Assuming it is mandatory
+    },
+    archivee: {
+      type: Boolean, // Boolean type to indicate true or false
+      default: false, // Default value is set to false
+    },
+
   },
 
   {

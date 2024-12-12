@@ -9,48 +9,55 @@ const pfaSchema = new mongoose.Schema(
     },
     natureSujet: {
       type: String,
-      required: true,
     },
+
+    technologies: { type: [String], required: false },
+
     description: { type: String, required: false },
-    technologies: { type: String, required: false },
+
     estBinome: { type: Boolean, required: false },
-    //etudiant_id: [{ type: mongoose.Schema.Types.ObjectId, ref: "etudiant" }], // Étudiants affectés
 
     // Gestion des choix des sujets
     choices: [
       {
         etudiantId: {
           type: mongoose.Schema.Types.ObjectId,
-          ref: "etudiant",
-          required: true,
+          ref: "User",
         }, // Étudiant principal
         binomeId: {
           type: mongoose.Schema.Types.ObjectId,
-          ref: "etudiant",
-          required: false,
+          ref: "User",
         }, // Binôme si applicable
         priority: {
           type: Number,
           validate: {
             validator: (value) => [1, 2, 3].includes(value),
-            message: "Priority must be 1, 2, or 3.",
+            message: "La priorité doit être 1, 2 ou 3.",
           },
+          required: true,
         },
+        acceptedPfa: { type: String },
+
+        _id: false,
       },
     ],
 
     etatDepot: {
       type: String,
       enum: ["rejected", "not rejected"],
-      required: true,
+
+      required: false,
+
       default: "not rejected",
     },
     etatAffectation: {
       type: String,
       enum: ["affected", "not affected"],
       required: false,
+      default: "not affected",
     },
     status: { type: String, enum: ["valid", "not valid"], required: false },
+
     raison: {
       type: String,
       validate: {
@@ -62,6 +69,11 @@ const pfaSchema = new mongoose.Schema(
         },
         message: "Le champ 'raison' est requis si le statut est 'non validé'.",
       },
+    },
+    enseignant: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User", // Référence au modèle `User`
+      required: true,
     },
   },
   {
