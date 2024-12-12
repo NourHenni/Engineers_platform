@@ -109,7 +109,6 @@ export const getMatieresByEnseignant = async (req, res) => {
   }
 };
 
-
 export const updateAvancement = async (req, res) => {
   const { id } = req.params; // ID de la matière
   const { chapitreIndex, sectionIndex, nouveauStatut } = req.body;
@@ -164,7 +163,12 @@ export const updateAvancement = async (req, res) => {
     }
     // Enregistrer les modifications
     await matiere.save();
+    // Récupérer les étudiants concernés
+    const etudiants = await User.find({ role: "etudiant", matieres: id });
 
+    if (!etudiants || etudiants.length === 0) {
+      return res.status(400).json({ message: "Aucun étudiant trouvé" });
+    }
     // Envoyer une réponse avec les détails mis à jour
     res.status(200).json({
       message: "Avancement mis à jour et notifications envoyées avec succès",
@@ -175,26 +179,8 @@ export const updateAvancement = async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 
-  // Récupérer les étudiants concernés
-  const etudiants = await User.find({ role: "etudiant" });
-  console.log(etudiants);
-
-  if (!etudiants || etudiants.length === 0) {
-    return res.status(400).json({ message: "Aucun étudiant trouvé" });
-  }
-
   // Notifier l'admin et les étudiants
   const admin = await User.findOne({ role: "admin" });
-
-  const emailRecipients = [
-    ...(admin ? [admin.adresseEmail] : []),
-    ...etudiants.map((e) => e.adresseEmail),
-  ];
-  const NomsDestinataires = [
-    ...(admin ? [admin.nom] : []),
-    ...etudiants.map((e) => e.nom),
-  ];
-  console.log(NomsDestinataires);
 
   // Configuration du transporteur Nodemailer
   const transporter = nodemailer.createTransport({
@@ -218,15 +204,6 @@ export const updateAvancement = async (req, res) => {
   if (!section) {
     return res.status(400).json({ message: "Section invalide" });
   }
-  const utilisateur = await User.findById(id);
-  console.log(etudiants.nom);
-  /* // Contenu de l'email
-  const mailOptions = {
-    from: process.env.MAILER_EMAIL_ID,
-    to: emailRecipients,
-    subject: `Mise à jour de l'avancement pour la matière : "${matiere.Nom}"`,
-    text: `Bonjour"  ${NomsDestinataires}" \n La section "${section.nomSection} "  du chapitre  " ${chapitre.titreChapitre}"  a été mise à jour avec le statut :  "${nouveauStatut}." ,\n vous  pouvez  consultez la progression de cette matiere dans la plateforme \nCordialement.`,
-  };*/
   // Envoi de l'email à l'administrateur
   if (admin) {
     const adminMailOptions = {
@@ -241,6 +218,7 @@ Cordialement,`,
     };
     await transporter.sendMail(adminMailOptions);
   }
+  const etudiants = await User.find({ role: "etudiant", matieres: id });
 
   // Envoi de l'email aux étudiants
   for (const etudiant of etudiants) {
@@ -258,10 +236,6 @@ Cordialement,`,
     };
     await transporter.sendMail(etudiantMailOptions);
   }
-
-  // Envoi des emails
-  // await transporter.sendMail(mailOptions);
 };
-
 
 export default { createMatiere, getMatieres, getMatieresByEnseignant };
