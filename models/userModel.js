@@ -15,6 +15,43 @@ const userSchema = new mongoose.Schema(
       required: true,
       unique: true,
     },
+    genre: {
+      type: String,
+      enum: ['homme', 'femme'],
+      required: true
+    },
+    dateDeNaissance: {
+      type: Date, // Using Date type for storing dates
+      required: true, // Assuming it is mandatory
+    },
+    gouvernorat: {
+      type: String,
+      required: true
+    },
+    addresse: {
+      type: String,
+      required: true
+    },
+    ville: {
+      type: String,
+      required: true
+    },
+    code_postal: {
+      type: Number,
+      required: true
+    },
+    nationalite: {
+      type: String,
+      required: true
+    },
+    telephone: {
+      type: Number,
+      required: true
+    },
+    annee_entree_isamm: {
+      type: Number,
+      required: true
+    },
     adresseEmail: {
       type: String,
       required: true,
@@ -28,10 +65,6 @@ const userSchema = new mongoose.Schema(
       type: String,
       enum: ["etudiant", "enseignant", "admin"],
       required: true,
-    },
-    dateDeNaissance: {
-      type: Date, // Using Date type for storing dates
-      required: true, // Assuming it is mandatory
     },
     archivee: {
       type: Boolean, // Boolean type to indicate true or false

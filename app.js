@@ -44,7 +44,9 @@ const startServer = async () => {
         : process.env.DEV_DATABASE;
 
     // Database connection
-    await mongoose.connect(databaseUri, { dbName: "Engineers" });
+    await mongoose.connect(databaseUri, {
+      dbName: "Engineers",
+    });
     console.log("Connected to the database");
 
     // Database seeding
