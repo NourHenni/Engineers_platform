@@ -1,6 +1,9 @@
 import pfaModel from "../models/pfaModel.js";
 import userModel from "../models/userModel.js";
 import Periode from "../models/periodeModel.js";
+
+import User from "../models/userModel.js";
+
 import moment from "moment";
 import periodeModel from "../models/periodeModel.js";
 import nodemailer from "nodemailer";
@@ -100,6 +103,10 @@ export const updateDelais = async (req, res) => {
 
     // Vérification si la période a commencé
     const now = new Date();
+    // Vérification si la date de fin est dépassée
+    if (now >= periode.Date_Fin) {
+      return res.status(400).json({ error: "Délai dépassé." });
+    }
     if (now >= periode.Date_Debut) {
       if (
         dateDebut &&
@@ -139,9 +146,16 @@ export const updateDelais = async (req, res) => {
 
 export const ajouterSujetPfa = async (req, res) => {
   try {
-    const { titreSujet, description, technologies, estBinome } = req.body;
+    const {
+      titreSujet,
+      description,
+      technologies,
+      estBinome,
+      nomEtudiant,
+      prenomEtudiant,
+    } = req.body;
 
-    // Vérification des données
+    // Vérification des données obligatoires
     if (!titreSujet || !description || !technologies) {
       return res.status(400).json({ message: "Champs requis manquants." });
     }
@@ -152,43 +166,98 @@ export const ajouterSujetPfa = async (req, res) => {
         message: "Accès interdit : seul un enseignant peut déposer un sujet.",
       });
     }
+
+    // Vérification de la période
+    const periode = await Periode.findOne({ Nom: "PFA" });
+
+    if (!periode) {
+      return res
+        .status(404)
+        .json({ message: "Aucune période trouvée pour le PFA." });
+    }
+
+    const now = new Date();
+    if (now < periode.Date_Debut || now > periode.Date_Fin) {
+      return res.status(400).json({
+        message: "La période n'est pas active ou est dépassée.",
+      });
+    }
+
+    let etudiantId = null;
+
+    // Si le nom et le prénom de l'étudiant sont fournis, chercher l'étudiant
+    if (nomEtudiant && prenomEtudiant) {
+      const etudiant = await User.findOne({
+        nom: nomEtudiant,
+        prenom: prenomEtudiant,
+        role: "etudiant", // Vérifier également que l'utilisateur a le rôle "etudiant"
+      });
+
+      if (!etudiant) {
+        return res
+          .status(404)
+          .json({ message: "Étudiant introuvable ou non valide." });
+      }
+
+      etudiantId = etudiant._id; // Associer l'étudiant trouvé
+    }
+
     // Générer un code PFA au format PFA2024-01
     const generateCodePfa = async () => {
+<<<<<<< HEAD
       const currentYear = new Date().getFullYear(); // Année actuelle
       const lastPfa = await pfaModel.findOne().sort({ _id: -1 }); // Dernier sujet enregistré
+=======
+      const currentYear = new Date().getFullYear();
+      const lastPfa = await Pfa.findOne().sort({ _id: -1 });
+>>>>>>> souhir
 
       if (lastPfa && lastPfa.code_pfa) {
         const parts = lastPfa.code_pfa.split("-");
-        const lastIdNumber = parts.length > 1 ? parseInt(parts[1], 10) : 0; // Extraire le numéro (ou 0 si non valide)
-        const nextIdNumber = isNaN(lastIdNumber) ? 1 : lastIdNumber + 1; // Gérer NaN et incrémenter correctement
-        return `PFA${currentYear}-${String(nextIdNumber).padStart(2, "0")}`; // Générer un code formaté
+        const lastIdNumber = parts.length > 1 ? parseInt(parts[1], 10) : 0;
+        const nextIdNumber = isNaN(lastIdNumber) ? 1 : lastIdNumber + 1;
+        return `PFA${currentYear}-${String(nextIdNumber).padStart(2, "0")}`;
       } else {
-        return `PFA${currentYear}-01`; // Premier code si aucun sujet n'existe
+        return `PFA${currentYear}-01`;
       }
     };
 
-    const codePfa = await generateCodePfa(); // Appel pour générer le code PFA
+    const codePfa = await generateCodePfa();
+
     // Création d'un sujet PFA
+<<<<<<< HEAD
     const nouveauPfa = new pfaModel({
       code_pfa: codePfa, // Ajouter le code PFA généré
+=======
+    const nouveauPfa = new Pfa({
+      code_pfa: codePfa,
+>>>>>>> souhir
       titreSujet,
       description,
       technologies,
       estBinome,
       enseignant: req.auth.userId, // Associer l'enseignant connecté
+      etudiant: etudiantId, // Null si aucun étudiant n'est fourni
     });
 
     // Sauvegarde du sujet PFA
     await nouveauPfa.save();
 
+<<<<<<< HEAD
     // Utilisation de populate pour inclure les informations de l'enseignant
     const sujetAvecEnseignant = await pfaModel
       .findById(nouveauPfa._id)
       .populate("enseignant");
+=======
+    // Utilisation de populate pour inclure les informations de l'enseignant et de l'étudiant
+    const sujetAvecDetails = await Pfa.findById(nouveauPfa._id)
+      .populate("enseignant", "nom prenom adresseEmail")
+      .populate("etudiant", "nom prenom");
+>>>>>>> souhir
 
     res.status(201).json({
       message: "Sujet PFA ajouté avec succès.",
-      sujet: sujetAvecEnseignant,
+      sujet: sujetAvecDetails,
     });
   } catch (error) {
     console.error("Erreur :", error.message);
