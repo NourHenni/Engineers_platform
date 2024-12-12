@@ -10,7 +10,6 @@ const pfaSchema = new mongoose.Schema(
     natureSujet: {
       type: String,
     },
-<<<<<<< HEAD
     description: {
       type: String,
       required: true,
@@ -23,16 +22,6 @@ const pfaSchema = new mongoose.Schema(
       type: Boolean,
       required: false,
     },
-=======
-
-    
-    technologies: { type: [String], required: false },
-
-    description: { type: String, required: false },
-   
-
-    estBinome: { type: Boolean, required: false },
->>>>>>> 89a7955826d4bce3f26df034684885f7f9fc9312
     etatDepot: {
       type: String,
       enum: ["rejected", "not rejected"],
@@ -47,27 +36,17 @@ const pfaSchema = new mongoose.Schema(
       required: false,
       default: "not affected",
     },
-<<<<<<< HEAD
     status: {
       type: String,
       enum: ["valided", "not valided"],
       required: false,
     },
-=======
-
-    period_pfa: { type: mongoose.Schema.Types.ObjectId, ref: "Periode" },
-    status: { type: String, enum: ["valid", "not valid"], required: false },
-
->>>>>>> 89a7955826d4bce3f26df034684885f7f9fc9312
     raison: {
       type: String,
       validate: {
         validator: function (value) {
-
-
           if (this.status === "not valid") {
             return value && value.trim().length > 0;
-
           }
           return true;
         },

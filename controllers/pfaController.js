@@ -1,12 +1,11 @@
 import Pfa from "../models/pfaModel.js";
 import userModel from "../models/userModel.js";
 import Periode from "../models/periodeModel.js";
-<<<<<<< HEAD
+
 import User from "../models/userModel.js";
-=======
+
 import moment from "moment";
 import periodeModel from "../models/periodeModel.js";
->>>>>>> 89a7955826d4bce3f26df034684885f7f9fc9312
 
 export const addPeriod = async (req, res) => {
   try {
