@@ -126,6 +126,10 @@ export const updateDelais = async (req, res) => {
 
     // Vérification si la période a commencé
     const now = new Date();
+    // Vérification si la date de fin est dépassée
+    if (now >= periode.Date_Fin) {
+      return res.status(400).json({ error: "Délai dépassé." });
+    }
     if (now >= periode.Date_Debut) {
       if (
         dateDebut &&
@@ -174,6 +178,14 @@ export const ajouterSujetPfa = async (req, res) => {
       prenomEtudiant,
     } = req.body;
 
+    // Vérifier si la période PFA est dépassée
+    const periodePfa = await Periode.findOne({ Nom: "PFA" });
+
+    if (periodePfa && new Date() >= new Date(periodePfa.Date_Fin)) {
+      return res.status(400).json({
+        message: "période est dépassé.",
+      });
+    }
     // Vérification des données obligatoires
     if (!titreSujet || !description || !technologies) {
       return res.status(400).json({ message: "Champs requis manquants." });
