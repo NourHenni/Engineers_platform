@@ -7,13 +7,10 @@ import pfaRoutes from "./routes/pfaRoute.js";
 import matiereRoute from "./routes/matiereRoute.js";
 import competenceRoute from "./routes/competenceRoute.js";
 import { seedDatabase } from "./config/seed.js";
-import stageRoutes from "./routes/stageEteRoute.js"
-import "./template/cronjobs.js"
-
-
+import stageRoutes from "./routes/stageEteRoute.js";
+import "./template/cronjobs.js";
 
 import { authMiddleware } from "./middellwares/authMiddellware.js";
-
 
 const app = express();
 
@@ -25,21 +22,13 @@ app.use(cors()); // Enable CORS middleware
 app.use(express.json()); // Enable middleware for parsing JSON
 
 // Routes
-<<<<<<< HEAD
-app.use("/", userRoutes);
-app.use("/api/pfa", authMiddleware, pfaRoutes);
 
-=======
-app.use("/api",stageRoutes);
-app.use("/api", competenceRoute);
+app.use("/", userRoutes);
+app.use("/pfa", authMiddleware, pfaRoutes);
+app.use("/internship", stageRoutes);
+app.use("/Competences", competenceRoute);
 app.use("/matieres", matiereRoute);
-app.use("/", userRoutes);
-app.use("/api/pfa", authMiddleware, pfaRoutes);
 
-
-
-
->>>>>>> 8e9783afee3e16b6acf1c2a992e2ae987cd6334d
 // Function to connect database, seed, and start the server
 const startServer = async () => {
   try {

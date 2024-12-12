@@ -17,8 +17,8 @@ const userSchema = new mongoose.Schema(
     },
     genre: {
       type: String,
-      enum: ['homme', 'femme'],
-      required: true
+      enum: ["homme", "femme"],
+      required: true,
     },
     dateDeNaissance: {
       type: Date, // Using Date type for storing dates
@@ -26,31 +26,31 @@ const userSchema = new mongoose.Schema(
     },
     gouvernorat: {
       type: String,
-      required: true
+      required: true,
     },
     addresse: {
       type: String,
-      required: true
+      required: true,
     },
     ville: {
       type: String,
-      required: true
+      required: true,
     },
     code_postal: {
       type: Number,
-      required: true
+      required: true,
     },
     nationalite: {
       type: String,
-      required: true
+      required: true,
     },
     telephone: {
       type: Number,
-      required: true
+      required: true,
     },
     annee_entree_isamm: {
       type: Number,
-      required: true
+      required: true,
     },
     adresseEmail: {
       type: String,
@@ -66,7 +66,6 @@ const userSchema = new mongoose.Schema(
       enum: ["etudiant", "enseignant", "admin"],
       required: true,
     },
-<<<<<<< HEAD
 
     isFirstSend: { type: Boolean, default: false },
     niveau: { type: String, enum: ["1ING", "2ING", "3ING"] },
@@ -75,25 +74,16 @@ const userSchema = new mongoose.Schema(
       type: Date, // Using Date type for storing dates
       required: true, // Assuming it is mandatory
     },
-=======
->>>>>>> 8e9783afee3e16b6acf1c2a992e2ae987cd6334d
     archivee: {
       type: Boolean, // Boolean type to indicate true or false
       default: false, // Default value is set to false
     },
-<<<<<<< HEAD
 
-=======
-<<<<<<< HEAD
-    isFirstSend: { type: Boolean, default: false },
-=======
     semestre: {
       type: String,
       enum: ["S1", "S2", "S3", "S4", "S5"],
       required: true,
     },
->>>>>>> cbbc03827cef5927e3a2fdcc90d48f13040e5d78
->>>>>>> 8e9783afee3e16b6acf1c2a992e2ae987cd6334d
   },
 
   {

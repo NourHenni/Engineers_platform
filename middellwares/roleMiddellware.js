@@ -44,12 +44,8 @@ export const isAdminOrStudent = (req, res, next) => {
     message: "Accès refusé : Vous devez être admin ou étudiant.",
   });
 };
-<<<<<<< HEAD
-export const isAdminOrTeacher = (req, res, next) => {
-=======
 
 export const isAdminOrEnseignant = (req, res, next) => {
->>>>>>> cbbc03827cef5927e3a2fdcc90d48f13040e5d78
   const userRole = req.auth.role;
 
   if (userRole === "admin" || userRole === "enseignant") {
@@ -61,7 +57,3 @@ export const isAdminOrEnseignant = (req, res, next) => {
     message: "Accès refusé : Vous devez être admin ou enseignant.",
   });
 };
-<<<<<<< HEAD
-
-=======
->>>>>>> cbbc03827cef5927e3a2fdcc90d48f13040e5d78
