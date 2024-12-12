@@ -6,7 +6,7 @@ const router = express.Router();
 
 
 // Routes CRUD
-router.post("/", createMatiere);
+router.post("/",authMiddleware,isAdmin, createMatiere);
 router.get("/getmatieres",authMiddleware,isAdmin, getMatieres);
 router.get("/getmatieres/:id",authMiddleware,isEnseignantOrEtudiant, getMatieres);
 router.post("/publish/:response",authMiddleware, isAdmin,publishOrHideMatieres);

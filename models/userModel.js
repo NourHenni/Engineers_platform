@@ -37,6 +37,11 @@ const userSchema = new mongoose.Schema(
       type: Boolean, // Boolean type to indicate true or false
       default: false, // Default value is set to false
     },
+    semestre: {
+      type: String,
+      enum: ["S1", "S2", "S3", "S4", "S5"],
+      required: true,
+    },
   },
   {
     timestamps: true,
