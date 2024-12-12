@@ -1,12 +1,8 @@
 import cron from "node-cron";
 import User from "../models/userModel.js";
-<<<<<<< HEAD
 import nodemailer from 'nodemailer';
 import Periode from "../models/periodeModel.js";
 import moment from "moment";
-=======
-import nodemailer from "nodemailer";
->>>>>>> cbbc03827cef5927e3a2fdcc90d48f13040e5d78
 // ou tout autre service de notification
 
 // Exemple de transporteur pour envoyer des e-mails (ici avec Nodemailer)
@@ -43,15 +39,10 @@ const sendMonthlyNotification = async () => {
 };
 
 // Planification du cron job pour exécuter la tâche chaque mois (par exemple le 1er jour de chaque mois à 9h00)
-<<<<<<< HEAD
-/*cron.schedule('* * * * *', () => {
-  console.log('Envoi de la notification mensuelle...');
-=======
 cron.schedule("0 9 1 * *", () => {
   console.log("Envoi de la notification mensuelle...");
->>>>>>> cbbc03827cef5927e3a2fdcc90d48f13040e5d78
   sendMonthlyNotification();
-});*/
+});
 
 //yasss
 // Tâche planifiée

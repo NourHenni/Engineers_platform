@@ -9,7 +9,6 @@ import {
   isEtudiant,
   isAdmin,
   isEnseignant,
-  isAdminOrTeacher,
   isAdminOrEnseignant,
 } from "../middellwares/roleMiddellware.js";
 import { upload } from "../middellwares/uploadMiddellware.js";
