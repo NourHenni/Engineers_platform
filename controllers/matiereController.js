@@ -109,6 +109,7 @@ export const getMatieresByEnseignant = async (req, res) => {
   }
 };
 
+
 export const updateAvancement = async (req, res) => {
   const { id } = req.params; // ID de la matière
   const { chapitreIndex, sectionIndex, nouveauStatut } = req.body;
@@ -261,5 +262,6 @@ Cordialement,`,
   // Envoi des emails
   // await transporter.sendMail(mailOptions);
 };
+
 
 export default { createMatiere, getMatieres, getMatieresByEnseignant };
