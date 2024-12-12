@@ -10,9 +10,18 @@ const pfaSchema = new mongoose.Schema(
     natureSujet: {
       type: String,
     },
-    description: { type: String, required: true },
-    technologies: { type: [String], required: true },
-    estBinome: { type: Boolean, required: false },
+    description: {
+      type: String,
+      required: true,
+    },
+    technologies: {
+      type: [String],
+      required: true,
+    },
+    estBinome: {
+      type: Boolean,
+      required: false,
+    },
     etatDepot: {
       type: String,
       enum: ["rejected", "not rejected"],
@@ -25,7 +34,11 @@ const pfaSchema = new mongoose.Schema(
       required: false,
       default: "not affected",
     },
-    status: { type: String, enum: ["valided", "not valided"], required: false },
+    status: {
+      type: String,
+      enum: ["valided", "not valided"],
+      required: false,
+    },
     raison: {
       type: String,
       validate: {
@@ -42,6 +55,11 @@ const pfaSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "User", // Référence au modèle `User`
       required: true,
+    },
+    etudiant: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User", // Référence au modèle `User` pour l'étudiant
+      required: false, // Pas obligatoire, car tous les sujets peuvent ne pas avoir un étudiant assigné
     },
   },
   {
