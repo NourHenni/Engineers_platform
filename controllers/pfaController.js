@@ -178,14 +178,6 @@ export const ajouterSujetPfa = async (req, res) => {
       prenomEtudiant,
     } = req.body;
 
-    // Vérifier si la période PFA est dépassée
-    const periodePfa = await Periode.findOne({ Nom: "PFA" });
-
-    if (periodePfa && new Date() >= new Date(periodePfa.Date_Fin)) {
-      return res.status(400).json({
-        message: "période est dépassé.",
-      });
-    }
     // Vérification des données obligatoires
     if (!titreSujet || !description || !technologies) {
       return res.status(400).json({ message: "Champs requis manquants." });
@@ -195,6 +187,22 @@ export const ajouterSujetPfa = async (req, res) => {
     if (req.auth.role !== "enseignant") {
       return res.status(403).json({
         message: "Accès interdit : seul un enseignant peut déposer un sujet.",
+      });
+    }
+
+    // Vérification de la période
+    const periode = await Periode.findOne({ Nom: "PFA" });
+
+    if (!periode) {
+      return res
+        .status(404)
+        .json({ message: "Aucune période trouvée pour le PFA." });
+    }
+
+    const now = new Date();
+    if (now < periode.Date_Debut || now > periode.Date_Fin) {
+      return res.status(400).json({
+        message: "La période n'est pas active ou est dépassée.",
       });
     }
 
