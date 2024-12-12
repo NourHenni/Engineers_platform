@@ -79,36 +79,6 @@ export const publishOrHideMatieres = async (req, res) => {
   }
 };
 
-export const getMatieresByEnseignant = async (req, res) => {
-  try {
-    // Récupérer l'ID de l'utilisateur connecté depuis le middleware d'authentification
-    const enseignantId = req.params.id;
-
-    // Vérifier si l'utilisateur est bien un enseignant
-    const user = await User.findById(enseignantId);
-    if (!user || user.role !== "enseignant") {
-      return res
-        .status(403)
-        .json({ message: "Accès interdit. Vous n'êtes pas un enseignant." });
-    }
-
-    // Récupérer les matières associées à cet enseignant
-    const matieres = await Matiere.find({ enseignant: enseignantId });
-
-    // Vérifier si des matières existent
-    if (!matieres || matieres.length === 0) {
-      return res
-        .status(404)
-        .json({ message: "Aucune matière trouvée pour cet enseignant." });
-    }
-
-    // Retourner les matières
-    res.status(200).json(matieres);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-};
-
 
 export const updateAvancement = async (req, res) => {
   const { id } = req.params; // ID de la matière
@@ -264,4 +234,6 @@ Cordialement,`,
 };
 
 
-export default { createMatiere, getMatieres, getMatieresByEnseignant };
+
+export default { createMatiere, getMatieres };
+

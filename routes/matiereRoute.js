@@ -13,4 +13,5 @@ router.post("/publish/:response",authMiddleware,isAdmin,publishOrHideMatieres);
 router.patch("/:id/avancement", authMiddleware, isEnseignant, updateAvancement);
 
 
+
 export default router;

@@ -70,62 +70,11 @@ const userSchema = new mongoose.Schema(
       type: Boolean, // Boolean type to indicate true or false
       default: false, // Default value is set to false
     },
-   
-
-    situation: {
+    semestre: {
       type: String,
-      enum: ['Nouveau', 'Redoublant', 'Diplomé'],
+      enum: ["S1", "S2", "S3", "S4", "S5"],
+      required: true,
     },
-    baccalaureat: {
-      type: String,
-      enum: ['bac math', 'bac technique', 'bac sciences', 'bac economie', 'bac informatique'],
-    },
-    annee_bac: {
-      type: Number,
-
-    },
-    moyenne_bac: {
-      type: Number,
-
-    },
-    mention: {
-      type: String,
-
-    },
-    est_prepa: {
-      type: Boolean,
-
-    },
-    universite: {
-      type: String,
-
-    },
-    etablissement: {
-      type: String,
-
-    },
-    type_licence: {
-      type: String,
-
-    },
-    specialite: {
-      type: String,
-
-    },
-    annee_licence: {
-      type: Number,
- 
-    },
-    annee_sortie_isamm: {
-      type: Number,
-      
-    },
-
-    
-    grade:{
-      type:String
-    }
-
   },
   {
     timestamps: true,
