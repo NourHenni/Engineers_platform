@@ -7,7 +7,9 @@ import pfaRoutes from "./routes/pfaRoute.js";
 import matiereRoute from "./routes/matiereRoute.js";
 import competenceRoute from "./routes/competenceRoute.js";
 import { seedDatabase } from "./config/seed.js";
+import stageRoutes from "./routes/stageEteRoute.js"
 import "./template/cronjobs.js"
+
 
 
 import { authMiddleware } from "./middellwares/authMiddellware.js";
@@ -23,15 +25,12 @@ app.use(cors()); // Enable CORS middleware
 app.use(express.json()); // Enable middleware for parsing JSON
 
 // Routes
-
-
+app.use("/api",stageRoutes);
 app.use("/api", competenceRoute);
 app.use("/matieres", matiereRoute);
-
-
-
 app.use("/", userRoutes);
 app.use("/api/pfa", authMiddleware, pfaRoutes);
+
 
 
 

@@ -70,11 +70,15 @@ const userSchema = new mongoose.Schema(
       type: Boolean, // Boolean type to indicate true or false
       default: false, // Default value is set to false
     },
+<<<<<<< HEAD
+    isFirstSend: { type: Boolean, default: false },
+=======
     semestre: {
       type: String,
       enum: ["S1", "S2", "S3", "S4", "S5"],
       required: true,
     },
+>>>>>>> cbbc03827cef5927e3a2fdcc90d48f13040e5d78
   },
   {
     timestamps: true,

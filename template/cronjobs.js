@@ -1,6 +1,12 @@
 import cron from "node-cron";
 import User from "../models/userModel.js";
+<<<<<<< HEAD
+import nodemailer from 'nodemailer';
+import Periode from "../models/periodeModel.js";
+import moment from "moment";
+=======
 import nodemailer from "nodemailer";
+>>>>>>> cbbc03827cef5927e3a2fdcc90d48f13040e5d78
 // ou tout autre service de notification
 
 // Exemple de transporteur pour envoyer des e-mails (ici avec Nodemailer)
@@ -37,7 +43,63 @@ const sendMonthlyNotification = async () => {
 };
 
 // Planification du cron job pour exécuter la tâche chaque mois (par exemple le 1er jour de chaque mois à 9h00)
+<<<<<<< HEAD
+/*cron.schedule('* * * * *', () => {
+  console.log('Envoi de la notification mensuelle...');
+=======
 cron.schedule("0 9 1 * *", () => {
   console.log("Envoi de la notification mensuelle...");
+>>>>>>> cbbc03827cef5927e3a2fdcc90d48f13040e5d78
   sendMonthlyNotification();
+});*/
+
+//yasss
+// Tâche planifiée
+cron.schedule("0 9 * * *", async () => {
+  console.log("Tâche Cron: Vérification des retards...");
+
+  try {
+    // Récupérer la date actuelle
+    const currentDate = moment().utc().startOf("day");
+
+    // Récupérer les périodes qui sont en retard
+    const latePeriods = await Periode.find({
+      Date_Fin_depot: { $lt: currentDate.toDate() },
+      PeriodState: { $ne: "Finished" }, // État non terminé
+    });
+
+    if (latePeriods.length === 0) {
+      console.log("Aucune période en retard trouvée.");
+      return;
+    }
+
+    // Parcourir les périodes en retard et envoyer des emails aux utilisateurs
+    for (const period of latePeriods) {
+      // Mettre à jour l'état de la période
+      period.PeriodState = "Late";
+      await period.save();
+
+      // Récupérer les utilisateurs associés (exemple, tous les étudiants)
+      const users = await User.find({ role: "etudiant" }); // Adaptez à votre modèle et logique
+
+      // Envoyer un email à chaque utilisateur
+      for (const user of users) {
+        const mailOptions = {
+          from: "votre.email@gmail.com",
+          to: user.email,
+          subject: `Alerte de retard pour la période ${period.type}`,
+          text: `Bonjour ${user.nom},\n\nLa période de dépôt "${period.type}" prévue entre ${moment(
+            period.Date_Debut_depot
+          ).format("DD/MM/YYYY")} et ${moment(period.Date_Fin_depot).format(
+            "DD/MM/YYYY"
+          )} est désormais en retard.\n\nVeuillez contacter l'administration pour régulariser votre situation.\n\nCordialement,\nL'équipe.`,
+        };
+
+        await transporter.sendMail(mailOptions);
+        console.log(`Email envoyé à ${user.email} pour la période ${period.type}`);
+      }
+    }
+  } catch (error) {
+    console.error("Erreur lors de la tâche Cron:", error.message);
+  }
 });

@@ -739,7 +739,73 @@ export const deleteOrArchiveEnseignantById = async (req, res) => {
     });
   }
 };
+<<<<<<< HEAD
+
+
+
+
+export const login = async (req, res) => {
+  try {
+    // Find the user by CIN
+    let foundUser = await User.findOne({ cin: req.body.cin });
+    if (!foundUser) {
+      return res.status(401).json({
+        message: "CIN ou mot de passe incorrect",
+      });
+    }
+
+    // Check if the user is archived
+    if (foundUser.archivee) {
+      return res.status(403).json({
+        message: "Votre compte est archivé. Veuillez contacter l'administrateur.",
+      });
+    }
+
+    // Compare the provided password with the hashed password stored in the database
+    const validPassword = await bcrypt.compare(req.body.password, foundUser.password);
+    if (!validPassword) {
+      return res.status(401).json({
+        message: "CIN ou mot de passe incorrect",
+      });
+    }
+
+    // Generate JWT token
+    const token = jwt.sign({ userId: foundUser._id }, process.env.JWT_SECRET, {
+      expiresIn: "1h",
+    });
+
+    // Respond with the token
+    res.status(200).json({
+      token,
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: error.message,
+    });
+  }
+};
+
+export const logout = async (req, res) => {
+  try {
+    // Perform any server-side cleanup if needed (e.g., logging user actions)
+
+    res.status(200).json({
+      message: "User logged out successfully",
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: error.message,
+    });
+  }
+};
+
+
+
+
+export const addStudentsFromFile = async (req, res) => {
+=======
 export const addTeachersFromFile = async (req, res) => {
+>>>>>>> cbbc03827cef5927e3a2fdcc90d48f13040e5d78
   try {
     if (!req.file) {
       return res.status(400).json({
