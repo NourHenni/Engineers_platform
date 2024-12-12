@@ -44,3 +44,16 @@ export const isAdminOrStudent = (req, res, next) => {
     message: "Accès refusé : Vous devez être admin ou étudiant.",
   });
 };
+
+export const isAdminOrEnseignant = (req, res, next) => {
+  const userRole = req.auth.role;
+
+  if (userRole === "admin" || userRole === "enseignant") {
+    return next();
+  }
+
+  return res.status(403).json({
+    success: false,
+    message: "Accès refusé : Vous devez être admin ou enseignant.",
+  });
+};
