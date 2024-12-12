@@ -70,7 +70,7 @@ export const updateCompetence = async (req, res) => {
 
     // Utilisez findByIdAndUpdate avec l'ID dans un objet
     const updatedCompetence = await Competence.findByIdAndUpdate(
-      id, // L'ID doit être dans le premier argument, ce qui est correct ici
+      id, // L'ID doit être dans le premier argument
       updatedData, // Les données à mettre à jour
       { new: true, runValidators: true } // Options
     );
