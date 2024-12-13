@@ -164,7 +164,7 @@ export const ajouterSujetPfa = async (req, res) => {
     }
 
     // Vérification de la période
-    const periode = await periodeModel.findOne({ Nom: "PFA" });
+    const periode = await periodeModel.findOne({ type: "PFA Project" });
 
     if (!periode) {
       return res
@@ -173,7 +173,7 @@ export const ajouterSujetPfa = async (req, res) => {
     }
 
     const now = new Date();
-    if (now < periode.Date_Debut || now > periode.Date_Fin) {
+    if (now < periode.Date_Debut_depot || now > periode.Date_Fin_depot) {
       return res.status(400).json({
         message: "La période n'est pas active ou est dépassée.",
       });
@@ -207,9 +207,9 @@ export const ajouterSujetPfa = async (req, res) => {
         const parts = lastPfa.code_pfa.split("-");
         const lastIdNumber = parts.length > 1 ? parseInt(parts[1], 10) : 0;
         const nextIdNumber = isNaN(lastIdNumber) ? 1 : lastIdNumber + 1;
-        return `PFA${currentYear}-${String(nextIdNumber).padStart(2, "0")}`;
+        return PFA${currentYear}-${String(nextIdNumber).padStart(2, "0")};
       } else {
-        return `PFA${currentYear}-01`;
+        return PFA${currentYear}-01;
       }
     };
 
@@ -234,10 +234,12 @@ export const ajouterSujetPfa = async (req, res) => {
       .findById(nouveauPfa._id)
       .populate("enseignant");
 
-    res.status(201).json({
-      message: "Sujet PFA ajouté avec succès.",
-      sujet: sujetAvecDetails,
-    });
+    if (sujetAvecEnseignant) {
+      res.status(201).json({
+        message: "Sujet PFA ajouté avec succès.",
+        sujet: nouveauPfa,
+      });
+    }
   } catch (error) {
     console.error("Erreur :", error.message);
     res.status(500).json({ message: "Erreur serveur." });
