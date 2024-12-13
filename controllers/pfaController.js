@@ -207,9 +207,9 @@ export const ajouterSujetPfa = async (req, res) => {
         const parts = lastPfa.code_pfa.split("-");
         const lastIdNumber = parts.length > 1 ? parseInt(parts[1], 10) : 0;
         const nextIdNumber = isNaN(lastIdNumber) ? 1 : lastIdNumber + 1;
-        return PFA${currentYear}-${String(nextIdNumber).padStart(2, "0")};
+        return `PFA${currentYear}-${String(nextIdNumber).padStart(2, "0")}`;
       } else {
-        return PFA${currentYear}-01;
+        return `PFA${currentYear}-01`;
       }
     };
 
