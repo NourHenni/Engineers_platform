@@ -1,8 +1,16 @@
-import Pfa from "../models/pfaModel.js";
+import pfaModel from "../models/pfaModel.js";
 import userModel from "../models/userModel.js";
-import Periode from "../models/periodeModel.js";
 import moment from "moment";
 import periodeModel from "../models/periodeModel.js";
+import nodemailer from "nodemailer";
+
+const FROM_EMAIL = process.env.MAILER_EMAIL_ID;
+const AUTH_PASSWORD = process.env.MAILER_PASSWORD;
+
+const API_ENDPOINT =
+  process.env.NODE_ENV === "production"
+    ? process.env.PRODUCTION_API_URL
+    : process.env.DEVELOPMENT_API_URL;
 
 export const addPeriod = async (req, res) => {
   try {
@@ -50,72 +58,11 @@ export const addPeriod = async (req, res) => {
   }
 };
 
-// Contrôleur pour ajouter une période
-export const addPeriode = async (req, res) => {
-  // hethi cv tout les cas traité succéé
-  try {
-    const { dateDebut, dateFin } = req.body;
-
-    // Validation des données
-    if (!dateDebut || !dateFin) {
-      return res
-        .status(400)
-        .json({ message: "Les dates debut et fin sont requises." });
-    }
-
-    const currentDate = new Date();
-    console.log(currentDate);
-    if (new Date(dateDebut) < currentDate) {
-      console.log("date est ", dateDebut);
-      return res.status(400).json({
-        message:
-          "La date de debut doit être superieure ou egale à la date actuelle.",
-      });
-    }
-    if (new Date(dateDebut) >= new Date(dateFin)) {
-      return res
-        .status(400)
-        .json({ message: "La date de debut doit être avant la date de fin." });
-    }
-    // Vérifier si une période existe déjà dans la plage spécifiée
-    const periodeExistante = await Periode.findOne({
-      $or: [
-        {
-          Date_Debut: { $lte: new Date(dateFin) },
-          Date_Fin: { $gte: new Date(dateDebut) },
-        },
-      ],
-    });
-
-    if (periodeExistante) {
-      return res
-        .status(400)
-        .json({ message: "Une periode existe dejà pour ces dates." });
-    }
-
-    // Créer une nouvelle période
-    const nouvellePeriode = new Periode({
-      Nom: "PFA",
-      Date_Debut: dateDebut,
-      Date_Fin: dateFin,
-    });
-
-    await nouvellePeriode.save();
-    res.status(201).json({
-      message: "Periode ajoutee avec succes.",
-      periode: nouvellePeriode,
-    });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: "Erreur serveur", error: error.message });
-  }
-};
-
 // Contrôleur pour récupérer les informations sur les périodes
 export const getPeriodes = async (req, res) => {
   try {
     // Récupérer toutes les périodes depuis la base de données
-    const periodes = await Periode.find();
+    const periodes = await periodeModel.find();
 
     // Vérifier si des périodes existent
     if (!periodes || periodes.length === 0) {
@@ -144,7 +91,7 @@ export const updateDelais = async (req, res) => {
     }
 
     // Recherche de la période spécifique (exemple : "PFA")
-    const periode = await Periode.findOne({ Nom: "PFA" });
+    const periode = await periodeModel.findOne({ type: "PFA Project" });
 
     if (!periode) {
       return res.status(404).json({ error: "Periode introuvable." });
@@ -152,6 +99,10 @@ export const updateDelais = async (req, res) => {
 
     // Vérification si la période a commencé
     const now = new Date();
+    // Vérification si la date de fin est dépassée
+    if (now >= periode.Date_Fin) {
+      return res.status(400).json({ error: "Délai dépassé." });
+    }
     if (now >= periode.Date_Debut) {
       if (
         dateDebut &&
@@ -191,9 +142,16 @@ export const updateDelais = async (req, res) => {
 
 export const ajouterSujetPfa = async (req, res) => {
   try {
-    const { titreSujet, description, technologies, estBinome } = req.body;
+    const {
+      titreSujet,
+      description,
+      technologies,
+      estBinome,
+      nomEtudiant,
+      prenomEtudiant,
+    } = req.body;
 
-    // Vérification des données
+    // Vérification des données obligatoires
     if (!titreSujet || !description || !technologies) {
       return res.status(400).json({ message: "Champs requis manquants." });
     }
@@ -204,44 +162,84 @@ export const ajouterSujetPfa = async (req, res) => {
         message: "Accès interdit : seul un enseignant peut déposer un sujet.",
       });
     }
+
+    // Vérification de la période
+    const periode = await periodeModel.findOne({ type: "PFA Project" });
+
+    if (!periode) {
+      return res
+        .status(404)
+        .json({ message: "Aucune période trouvée pour le PFA." });
+    }
+
+    const now = new Date();
+    if (now < periode.Date_Debut_depot || now > periode.Date_Fin_depot) {
+      return res.status(400).json({
+        message: "La période n'est pas active ou est dépassée.",
+      });
+    }
+
+    let etudiantId = null;
+
+    // Si le nom et le prénom de l'étudiant sont fournis, chercher l'étudiant
+    if (nomEtudiant && prenomEtudiant) {
+      const etudiant = await userModel.findOne({
+        nom: nomEtudiant,
+        prenom: prenomEtudiant,
+        role: "etudiant", // Vérifier également que l'utilisateur a le rôle "etudiant"
+      });
+
+      if (!etudiant) {
+        return res
+          .status(404)
+          .json({ message: "Étudiant introuvable ou non valide." });
+      }
+
+      etudiantId = etudiant._id; // Associer l'étudiant trouvé
+    }
+
     // Générer un code PFA au format PFA2024-01
     const generateCodePfa = async () => {
       const currentYear = new Date().getFullYear(); // Année actuelle
-      const lastPfa = await Pfa.findOne().sort({ _id: -1 }); // Dernier sujet enregistré
+      const lastPfa = await pfaModel.findOne().sort({ _id: -1 }); // Dernier sujet enregistré
 
       if (lastPfa && lastPfa.code_pfa) {
         const parts = lastPfa.code_pfa.split("-");
-        const lastIdNumber = parts.length > 1 ? parseInt(parts[1], 10) : 0; // Extraire le numéro (ou 0 si non valide)
-        const nextIdNumber = isNaN(lastIdNumber) ? 1 : lastIdNumber + 1; // Gérer NaN et incrémenter correctement
-        return `PFA${currentYear}-${String(nextIdNumber).padStart(2, "0")}`; // Générer un code formaté
+        const lastIdNumber = parts.length > 1 ? parseInt(parts[1], 10) : 0;
+        const nextIdNumber = isNaN(lastIdNumber) ? 1 : lastIdNumber + 1;
+        return `PFA${currentYear}-${String(nextIdNumber).padStart(2, "0")}`;
       } else {
-        return `PFA${currentYear}-01`; // Premier code si aucun sujet n'existe
+        return `PFA${currentYear}-01`;
       }
     };
 
-    const codePfa = await generateCodePfa(); // Appel pour générer le code PFA
+    const codePfa = await generateCodePfa();
+
     // Création d'un sujet PFA
-    const nouveauPfa = new Pfa({
+    const nouveauPfa = new pfaModel({
       code_pfa: codePfa, // Ajouter le code PFA généré
       titreSujet,
       description,
       technologies,
       estBinome,
       enseignant: req.auth.userId, // Associer l'enseignant connecté
+      etudiant: etudiantId, // Null si aucun étudiant n'est fourni
     });
 
     // Sauvegarde du sujet PFA
     await nouveauPfa.save();
 
     // Utilisation de populate pour inclure les informations de l'enseignant
-    const sujetAvecEnseignant = await Pfa.findById(nouveauPfa._id).populate(
-      "enseignant"
-    );
+    const sujetAvecEnseignant = await pfaModel
+      .findById(nouveauPfa._id)
+      .populate("enseignant");
 
-    res.status(201).json({
-      message: "Sujet PFA ajouté avec succès.",
-      sujet: sujetAvecEnseignant,
-    });
+    if (sujetAvecEnseignant) {
+      res.status(201).json({
+        message: "Sujet PFA ajouté avec succès.",
+        sujet: nouveauPfa,
+      });
+    }
   } catch (error) {
     console.error("Erreur :", error.message);
     res.status(500).json({ message: "Erreur serveur." });
@@ -258,7 +256,8 @@ export const getAllPfasByTeacher = async (req, res) => {
     }
 
     // Récupérer tous les sujets PFA déposés par l'enseignant connecté
-    const sujets = await Pfa.find({ enseignant: req.auth.userId })
+    const sujets = await pfaModel
+      .find({ enseignant: req.auth.userId })
       .populate("enseignant", "nom prenom adresseEmail") // Inclut les détails de l'enseignant
       .exec();
 
@@ -294,7 +293,8 @@ export const getPfaByIdForTeacher = async (req, res) => {
     }
 
     // Rechercher le sujet PFA par ID
-    const sujet = await Pfa.findById(id)
+    const sujet = await pfaModel
+      .findById(id)
       .populate("enseignant", "nom prenom adresseEmail") // Inclut les détails de l'enseignant
       .exec();
 
@@ -339,7 +339,7 @@ export const modifyPfaSubject = async (req, res) => {
     }
 
     // Rechercher le sujet PFA par ID
-    const sujet = await Pfa.findById(id);
+    const sujet = await pfaModel.findById(id);
 
     // Vérifier si le sujet existe
     if (!sujet) {
@@ -356,7 +356,7 @@ export const modifyPfaSubject = async (req, res) => {
     }
 
     // Vérifier si la période a déjà commencé et que les dates sont dépassées
-    const periodePfa = await Periode.findOne({ Nom: "PFA" });
+    const periodePfa = await periodeModel.findOne({ Nom: "PFA" });
 
     if (periodePfa && new Date() >= new Date(periodePfa.Date_Fin)) {
       return res.status(400).json({
@@ -400,7 +400,7 @@ export const deletePfa = async (req, res) => {
     }
 
     // Recherche du sujet PFA par ID
-    const sujet = await Pfa.findById(id);
+    const sujet = await pfaModel.findById(id);
 
     // Vérification si le sujet existe
     if (!sujet) {
@@ -417,7 +417,7 @@ export const deletePfa = async (req, res) => {
     }
 
     // Vérification de la période de dépôt pour voir si le délai est dépassé
-    const periode = await Periode.findOne({ Nom: "PFA" });
+    const periode = await periodeModel.findOne({ Nom: "PFA" });
 
     if (!periode) {
       return res.status(404).json({
@@ -433,7 +433,7 @@ export const deletePfa = async (req, res) => {
     }
 
     // Suppression du sujet
-    await Pfa.findByIdAndDelete(id);
+    await pfaModel.findByIdAndDelete(id);
 
     res.status(200).json({
       message: "Sujet PFA supprimé avec succès.",
@@ -518,33 +518,73 @@ export const fetchPfas = async (req, res) => {
 
 export const fecthPfaById = async (req, res) => {
   try {
+    // Récupérer le sujet PFA par son ID
     const sujetPFA = await pfaModel.findOne({ _id: req.params.idPFA });
-    if (!sujetPFA) {
-      res
-        .status(400)
-        .json({ message: "Sujet pfa inexistant  veuillez vérifier !!" });
-    } else {
-      const userRole = req.auth.role;
 
-      if (userRole === "admin") {
-        res.status(200).json({ model: sujetPFA, message: " Le sujet PFA est" });
-      } else if (userRole === "etudiant") {
-        const { updatedAt, createdAt, _id, etatDepot, ...newPfa } =
-          sujetPFA.toObject();
-        res.status(200).json({
-          model: newPfa,
-          message: "success",
-        });
-      } else {
+    if (!sujetPFA) {
+      return res.status(400).json({
+        success: false,
+        message: "Sujet PFA inexistant, veuillez vérifier !!",
+      });
+    }
+
+    const userId = req.auth.userId; // ID de l'utilisateur connecté
+    const userRole = req.auth.role; // Rôle de l'utilisateur connecté (par exemple : "admin", "etudiant", etc.)
+
+    if (userRole === "admin") {
+      // Si l'utilisateur est un administrateur
+      return res.status(200).json({
+        success: true,
+        model: sujetPFA,
+        message: "Le sujet PFA est récupéré avec succès.",
+      });
+    }
+
+    if (userRole === "etudiant") {
+      // Si l'utilisateur est un étudiant, vérifier son niveau
+      const foundEtudiant = await userModel.findOne({
+        _id: userId,
+        niveau: "2ING",
+      });
+
+      if (!foundEtudiant) {
         return res.status(403).json({
           success: false,
-          message: "Accès refusé",
+          message:
+            "Accès refusé. Vous devez être au niveau 2ING pour accéder à ce sujet PFA.",
         });
       }
+
+      // Supprimer certains champs sensibles/non pertinents avant de retourner les données
+      const {
+        updatedAt,
+        createdAt,
+        _id,
+        choices,
+        etatAffectation,
+        enseignant,
+        etatDepot,
+        ...filteredPfa
+      } = sujetPFA.toObject();
+
+      return res.status(200).json({
+        success: true,
+        model: filteredPfa,
+        message: "Sujet PFA récupéré avec succès.",
+      });
     }
+
+    // Si le rôle n'est ni "admin" ni "etudiant"
+    return res.status(403).json({
+      success: false,
+      message:
+        "Accès refusé. Vous n'êtes pas autorisé à accéder à ce sujet PFA.",
+    });
   } catch (error) {
-    res.status(500).json({
-      message: error.message,
+    console.error("Erreur lors de la récupération du sujet PFA :", error);
+    return res.status(500).json({
+      success: false,
+      message: "Une erreur est survenue lors de la récupération du sujet PFA.",
     });
   }
 };
@@ -582,8 +622,9 @@ export const changeState = async (req, res) => {
 export const publishPfas = async (req, res) => {
   try {
     const response = req.params.response;
+    console.log(response);
 
-    if (response == true) {
+    if (response == "true") {
       const currentDate = moment().utc().startOf("day");
       const start_date = moment(req.body.dateDebutChoix + "T00:00:00Z").utc();
       const end_date = moment(req.body.dateFinChoix + "T23:59:59Z").utc();
@@ -644,6 +685,453 @@ export const publishPfas = async (req, res) => {
   } catch (error) {
     res.status(500).json({
       message: error.message,
+    });
+  }
+};
+
+export const sendListePfa = async (req, res) => {
+  try {
+    // Trouver les étudiants au niveau 2ING
+    const foundEtudiants = await userModel.find({
+      $and: [{ role: "etudiant" }, { niveau: "2ING" }],
+    });
+
+    if (!foundEtudiants.length) {
+      return res.status(400).json({ message: "Aucun étudiant trouvé." });
+    }
+
+    // Trouver les enseignants ayant déposé des sujets PFA
+    const teachersWithPfa = await userModel.find({
+      role: "enseignant",
+      _id: {
+        $in: (
+          await pfaModel
+            .find({ enseignant: { $ne: null } })
+            .select("enseignant")
+        ).map((pfa) => pfa.enseignant),
+      },
+    });
+
+    console.log(teachersWithPfa);
+
+    if (!teachersWithPfa.length) {
+      return res.status(400).json({ message: "Aucun enseignant trouvé." });
+    }
+
+    // Séparer les étudiants en deux groupes
+    const etudiantsFirstSend = foundEtudiants.filter(
+      (etudiant) => !etudiant.isFirstSend
+    );
+    const etudiantsAlreadySent = foundEtudiants.filter(
+      (etudiant) => etudiant.isFirstSend
+    );
+
+    // Séparer les enseignants en deux groupes
+    const enseignantsFirstSend = teachersWithPfa.filter(
+      (enseignant) => !enseignant.isFirstSend
+    );
+    const enseignantsAlreadySent = teachersWithPfa.filter(
+      (enseignant) => enseignant.isFirstSend
+    );
+
+    // Construire les listes d'emails
+    const emailsFirstSend = [
+      ...etudiantsFirstSend.map((etudiant) => etudiant.adresseEmail),
+      ...enseignantsFirstSend.map((enseignant) => enseignant.adresseEmail),
+    ];
+
+    const emailsAlreadySent = [
+      ...etudiantsAlreadySent.map((etudiant) => etudiant.adresseEmail),
+      ...enseignantsAlreadySent.map((enseignant) => enseignant.adresseEmail),
+    ];
+
+    if (!emailsFirstSend.length && !emailsAlreadySent.length) {
+      return res
+        .status(200)
+        .json({ message: "Tous les emails ont déjà été envoyés." });
+    }
+
+    // Configuration du transporteur SMTP
+    const smtpTransport = nodemailer.createTransport({
+      host: process.env.HOST,
+      port: process.env.PORT_SSL,
+      secure: false,
+      service: process.env.MAILER_SERVICE_PROVIDER,
+      auth: {
+        user: FROM_EMAIL,
+        pass: AUTH_PASSWORD,
+      },
+    });
+
+    // Contenu des emails
+    const firstSendHtml = `
+      Bonjour,<br/><br/>
+      Nous avons le plaisir de vous informer que la liste des sujets pour les Projets de Fin d’Année (PFAs) a été publiée. <br/>
+      Vous pouvez consulter les détails des sujets en suivant le lien ci-dessous :<br/><br/>
+      <a href="${API_ENDPOINT}/getPfas" target="_blank" style="color: #007bff; text-decoration: none; font-weight: bold;">
+        Accéder à la liste des sujets
+      </a><br/><br/>
+      Cordialement,<br/>
+      L’équipe de coordination des PFAs.
+    `;
+
+    const updatedSendHtml = `
+      Bonjour,<br/><br/>
+      Nous vous informons que la liste des sujets pour les Projets de Fin d’Année (PFAs) a été mise à jour. <br/>
+      Veuillez consulter les modifications en suivant le lien ci-dessous :<br/><br/>
+      <a href="${API_ENDPOINT}/getPfas" target="_blank" style="color: #007bff; text-decoration: none; font-weight: bold;">
+        Accéder à la liste mise à jour
+      </a><br/><br/>
+      Cordialement,<br/>
+      L’équipe de coordination des PFAs.
+    `;
+
+    // Fonction d'envoi d'emails
+    const sendEmail = async (destinataires, subject, htmlContent) => {
+      const mailOptions = {
+        from: FROM_EMAIL,
+        to: destinataires,
+        subject,
+        html: htmlContent,
+      };
+
+      return smtpTransport.sendMail(mailOptions);
+    };
+
+    // Envoi des emails
+    if (emailsFirstSend.length) {
+      await sendEmail(
+        emailsFirstSend,
+        "Publication des sujets de PFAs",
+        firstSendHtml
+      );
+
+      // Mettre à jour le statut `isFirstSend` pour étudiants et enseignants
+      const firstSendIds = [
+        ...etudiantsFirstSend.map((etudiant) => etudiant._id),
+        ...enseignantsFirstSend.map((enseignant) => enseignant._id),
+      ];
+
+      await userModel.updateMany(
+        { _id: { $in: firstSendIds } },
+        { $set: { isFirstSend: true } }
+      );
+    }
+
+    if (emailsAlreadySent.length) {
+      await sendEmail(
+        emailsAlreadySent,
+        "Mise à jour des sujets de PFAs",
+        updatedSendHtml
+      );
+    }
+
+    return res
+      .status(200)
+      .json({ success: true, message: "Emails envoyés avec succès." });
+  } catch (error) {
+    console.error("Erreur :", error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const fetchPublishedPfa = async (req, res) => {
+  try {
+    const studentId = req.auth.userId;
+
+    const foundEtudiant = await userModel.findOne({
+      $and: [{ _id: studentId }, { niveau: "2ING" }],
+    });
+
+    if (!foundEtudiant) {
+      return res
+        .status(400)
+        .json({ message: " pas encore des étudiants en 2 eme " });
+    }
+    const sujetsPfa = await pfaModel.find({
+      etatDepot: "published",
+    });
+
+    if (sujetsPfa.length === 0) {
+      res.status(400).json({ message: " pas encore de sujets pfa publiés" });
+    } else {
+      res
+        .status(200)
+        .json({ model: sujetsPfa, message: " Les sujets pfas publiés" });
+    }
+  } catch (error) {
+    res.status(500).json({
+      message: error.message,
+    });
+  }
+};
+
+export const choosePfaSubjects = async (req, res) => {
+  try {
+    const studentId = req.auth.userId; // ID de l'étudiant récupéré via JWT
+    const { choices, binomeId, acceptedPfa } = req.body; // Liste des choix et ID unique du binôme (s'il existe)
+
+    const foundEtudiant = await userModel.findOne({
+      $and: [{ _id: studentId }, { niveau: "2ING" }],
+    });
+
+    if (!foundEtudiant) {
+      return res.status(400).json({
+        message: " seul les étudiants en 2eme peuvent choisir des sujets PFA ",
+      });
+    }
+
+    // Vérifier si l'étudiant a déjà effectué des choix
+    const existingChoices = await pfaModel.findOne({
+      "choices.etudiantId": studentId,
+    });
+
+    if (existingChoices) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Vous avez déjà fait vos choix. Vous ne pouvez pas en faire de nouveaux.",
+      });
+    }
+
+    // Validation 1 : Vérifier qu'il y a exactement 3 choix
+    if (!choices || choices.length !== 3) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Vous devez choisir exactement 3 sujets avec des priorités différentes.",
+      });
+    }
+
+    // Validation 2 : Vérifier que les priorités sont uniques
+    const uniquePriorities = new Set(choices.map((choice) => choice.priority));
+    if (uniquePriorities.size !== 3) {
+      return res.status(400).json({
+        success: false,
+        message: "Les priorités des sujets doivent être uniques.",
+      });
+    }
+
+    // Validation 3 : Vérifier qu'un étudiant ne choisit pas le même sujet avec toutes les priorités
+    const uniqueSubjects = new Set(choices.map((choice) => choice.codePfa));
+    if (uniqueSubjects.size !== 3) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Vous ne pouvez pas choisir le même sujet avec des priorités différentes.",
+      });
+    }
+
+    // Validation 4 : Si un binôme est fourni, vérifier sa validité
+    if (binomeId) {
+      const binome = await userModel.findOne({
+        _id: binomeId,
+        role: "etudiant",
+      });
+
+      if (!binome) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Le binôme fourni n'existe pas ou n'a pas le rôle 'etudiant'.",
+        });
+      }
+
+      if (binomeId === studentId) {
+        return res.status(400).json({
+          success: false,
+          message: "Le binôme ne peut pas être le même étudiant.",
+        });
+      }
+    }
+
+    // Validation 5 : Vérifier chaque sujet
+    for (const choice of choices) {
+      const pfa = await pfaModel.findOne({ code_pfa: choice.codePfa });
+
+      if (!pfa) {
+        return res.status(404).json({
+          success: false,
+          message: `Le sujet avec le code ${choice.codePfa} est introuvable.`,
+        });
+      }
+
+      // Vérifier si le sujet nécessite un binôme mais qu'aucun n'a été fourni
+      if (pfa.estBinome && !binomeId) {
+        return res.status(400).json({
+          success: false,
+          message: `Le code ${pfa.code_pfa} du sujet ${pfa.titreSujet} nécessite un binôme. Veuillez entrer l'ID de votre binôme.`,
+        });
+      }
+
+      // Validation : Vérifier si le sujet est déjà choisi avec la même priorité par un autre étudiant
+      const existingChoice = await pfaModel.findOne({
+        code_pfa: choice.codePfa, // Sujet spécifique
+        choices: {
+          $elemMatch: {
+            priority: choice.priority, // Priorité spécifique
+            etudiantId: { $ne: studentId }, // Exclure l'étudiant actuel
+            ...(binomeId && { binomeId: { $ne: binomeId } }), // Exclure si c'est validé par le binôme
+          },
+        },
+      });
+
+      if (existingChoice) {
+        return res.status(400).json({
+          success: false,
+          message: `Le sujet ${choice.codePfa} avec la priorité ${choice.priority} est déjà choisi par un autre étudiant. Veuillez choisir un autre sujet ou une autre priorité.`,
+        });
+      }
+
+      // Validation 6 : Vérifier si le sujet est déjà affecté
+      if (pfa.etatAffectation === "affected") {
+        return res.status(400).json({
+          success: false,
+          message: `Le code ${pfa.code_pfa} du sujet ${pfa.titreSujet} est déjà affecté. Veuillez choisir un autre sujet.`,
+        });
+      }
+    }
+    // Validation 6 : Vérifier que le sujet accepté est parmi les choix
+    if (acceptedPfa) {
+      const acceptedChoice = choices.find(
+        (choice) => choice.codePfa === acceptedPfa
+      );
+      if (!acceptedChoice) {
+        return res.status(400).json({
+          success: false,
+          message: "Le sujet accepté doit faire partie de vos choix.",
+        });
+      }
+    }
+    await Promise.all(
+      choices.map(async (choice) => {
+        const pfa = await pfaModel.findOne({ code_pfa: choice.codePfa });
+
+        // Définir le binomeId uniquement si le sujet nécessite un binôme
+        const choiceData = {
+          etudiantId: studentId,
+          priority: choice.priority,
+          binomeId: pfa.estBinome ? binomeId || null : null,
+        };
+
+        // Ajouter le choix au sujet pour l'étudiant principal
+        await pfaModel.updateOne(
+          { code_pfa: choice.codePfa },
+          {
+            $addToSet: { choices: choiceData },
+          },
+          { runValidators: true }
+        );
+
+        // Si le sujet nécessite un binôme, ajouter le choix également pour le binôme
+        if (pfa.estBinome && binomeId) {
+          const binomeChoiceData = {
+            etudiantId: binomeId,
+            priority: choice.priority,
+            binomeId: studentId, // Ajouter l'ID du principal comme binôme
+          };
+
+          await pfaModel.updateOne(
+            { code_pfa: choice.codePfa },
+            {
+              $addToSet: { choices: binomeChoiceData },
+            },
+            { runValidators: true }
+          );
+        }
+      })
+    );
+    // Mettre à jour le sujet accepté
+    if (acceptedPfa) {
+      await pfaModel.updateOne(
+        { code_pfa: acceptedPfa },
+        { $set: { etatAffectation: "affected" } }
+      );
+    }
+
+    // Réponse finale après le traitement de tous les choix
+    return res.status(200).json({
+      success: true,
+      message: "Vos choix ont été enregistrés avec succès.",
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({
+      success: false,
+      message: "Une erreur est survenue lors de l'enregistrement des choix.",
+    });
+  }
+};
+
+export const updateAcceptedPfa = async (req, res) => {
+  try {
+    const studentId = req.auth.userId; // ID de l'étudiant récupéré via JWT
+    const { acceptedPfa } = req.body; // Sujet accepté fourni par le corps de la requête
+
+    if (!acceptedPfa) {
+      return res.status(400).json({
+        success: false,
+        message: "Veuillez fournir un sujet accepté.",
+      });
+    }
+
+    // Rechercher tous les PFAs contenant des choix faits par cet étudiant
+    const pfas = await pfaModel.find({
+      "choices.etudiantId": studentId,
+    });
+
+    if (!pfas.length) {
+      return res.status(404).json({
+        success: false,
+        message: "Aucun choix trouvé pour cet étudiant.",
+      });
+    }
+
+    // Vérifier si le sujet accepté fait partie des choix valides de l'étudiant
+    const isValidChoice = pfas.some((pfa) =>
+      pfa.choices.some(
+        (choice) =>
+          choice.etudiantId.toString() === studentId &&
+          choice.acceptedPfa === undefined &&
+          pfa.code_pfa === acceptedPfa // Vérifie si le code du PFA correspond
+      )
+    );
+
+    if (!isValidChoice) {
+      return res.status(400).json({
+        success: false,
+        message: "Le sujet accepté doit être parmi vos choix.",
+      });
+    }
+
+    // Mettre à jour le sujet accepté et définir l'état comme "affecté"
+    const updateResult = await pfaModel.updateOne(
+      { code_pfa: acceptedPfa, "choices.etudiantId": studentId },
+      {
+        $set: {
+          "choices.$.acceptedPfa": acceptedPfa, // Ajoute le sujet accepté au choix
+          etatAffectation: "affected", // Marque le sujet comme affecté
+        },
+      }
+    );
+
+    if (!updateResult.modifiedCount) {
+      return res.status(500).json({
+        success: false,
+        message: "Impossible de mettre à jour le sujet accepté.",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Le sujet accepté a été mis à jour avec succès.",
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({
+      success: false,
+      message:
+        "Une erreur est survenue lors de la mise à jour du sujet accepté.",
     });
   }
 };

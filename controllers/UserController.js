@@ -1,14 +1,12 @@
 import User from "../models/userModel.js";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
-
 import xlsx from 'xlsx';
 import { sendEmail } from "../services/emailservice.js";
 
 
 
 ////////////////////////ALL USERS//////////////////////////
-
 export const login = async (req, res) => {
   try {
     // Find the user by CIN
@@ -62,16 +60,8 @@ export const logout = async (req, res) => {
     });
   }
 };
-
 ///////////////////////////////////////////////////////////
-
-
-
-
-
 //////////////////////ETUDIANT/////////////////////////////
-
-
 export const createEtudiant = async (req, res) => {
   try {
     // Set the default role to 'etudiant' if no role is provided
@@ -474,14 +464,8 @@ export const addStudentsFromFile = async (req, res) => {
     });
   }
 };
-
 /////////////////////////////////////////////////////////////
-
-
-
 //////////////////////ENSEIGNANT//////////////////////////
-
-
 export const createEnseignant = async (req, res) => {
   try {
     // Set the default role to 'enseignant' if no role is provided
@@ -740,6 +724,7 @@ export const deleteOrArchiveEnseignantById = async (req, res) => {
   }
 };
 export const addTeachersFromFile = async (req, res) => {
+
   try {
     if (!req.file) {
       return res.status(400).json({
@@ -832,8 +817,6 @@ export const addTeachersFromFile = async (req, res) => {
     });
   }
 };
-
-
 ////////////////////////////////////////////////////////////////////
 
 

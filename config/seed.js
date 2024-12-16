@@ -26,7 +26,7 @@ const defaultUsers = [
     nom: "Student",
     prenom: "User",
     cin: 11223344,
-    adresseEmail: "student@example.com",
+    adresseEmail: "nourbenhenni687@gmail.com",
     password: "student123", // Plaintext password
     role: "etudiant",
     dateDeNaissance: "2000-06-15", // Add birthdate for student

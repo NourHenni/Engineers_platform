@@ -18,6 +18,7 @@ export const authMiddleware = async (req, res, next) => {
           userId: userId,
           role: user.role,
         };
+        
         next();
       } else {
         res.status(401).json({ error: "user doesn't exist" });
