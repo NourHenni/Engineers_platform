@@ -1,5 +1,5 @@
 import express from "express";
-import {createMatiere,getMatieres,publishOrHideMatieres,getMatieresByEnseignant,updateAvancement} from "../controllers/matiereController.js";
+import {createMatiere,getMatieres,publishOrHideMatieres,updateAvancement} from "../controllers/matiereController.js";
 import { authMiddleware } from "../middellwares/authMiddellware.js";
 import {isAdmin,isEnseignant,isEnseignantOrEtudiant} from "../middellwares/roleMiddellware.js";
 const router = express.Router();
