@@ -17,7 +17,7 @@ const userSchema = new mongoose.Schema(
     },
     genre: {
       type: String,
-      enum: ["homme", "femme"],
+      enum: ["M", "F"],
       required: true,
     },
     dateDeNaissance: {
@@ -83,7 +83,12 @@ const userSchema = new mongoose.Schema(
       type: String,
       enum: ["S1", "S2", "S3", "S4", "S5"],
       required: true,
+      default:"S1"
     },
+    grade: {
+      type:String,
+      required:false
+    }
     
   },
 

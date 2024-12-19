@@ -266,6 +266,7 @@ export const updateEtudiantPassword = async (req, res) => {
     const { id } = req.params;
     const { nouveau, confirmationNouveau } = req.body;
 
+    // Check if the new password matches the confirmation
     if (nouveau !== confirmationNouveau) {
       return res.status(400).json({
         success: false,
@@ -273,7 +274,8 @@ export const updateEtudiantPassword = async (req, res) => {
       });
     }
 
-    const user = await User.findOne({ _id: id, role: 'etudiant' });
+    // Find the user by ID and role
+    const user = await User.findOne({ _id: id, role: "etudiant" });
     if (!user) {
       return res.status(404).json({
         success: false,
@@ -281,18 +283,30 @@ export const updateEtudiantPassword = async (req, res) => {
       });
     }
 
+    // Hash the new password
     const hashedPassword = await bcrypt.hash(nouveau, 10);
-    user.password = hashedPassword;
-    await user.save();
 
-    // Send the email with the new password
-    await sendEmail(user.adresseEmail, user.nom, user.prenom, user.cin, nouveau);
+    // Update the password directly in the database
+    await User.updateOne({ _id: id }, { $set: { password: hashedPassword } });
 
+    // Optionally, send a notification email
+    try {
+      await sendEmail(user.adresseEmail, user.nom, user.prenom, user.cin, nouveau);
+    } catch (emailError) {
+      console.error("Échec de l'envoi de l'email:", emailError.message);
+      return res.status(500).json({
+        success: false,
+        message: "Mot de passe modifié, mais l'email n'a pas pu être envoyé.",
+      });
+    }
+
+    // Respond with success
     res.status(200).json({
       success: true,
       message: "Mot de passe modifié avec succès et un email a été envoyé",
     });
   } catch (error) {
+    // Handle unexpected errors
     res.status(500).json({
       success: false,
       message: error.message,
@@ -314,7 +328,7 @@ export const deleteOrArchiveStudentById = async (req, res) => {
       });
     }
 
-    // Check if the user is an student
+    // Check if the user is a student
     if (student.role !== "etudiant") {
       return res.status(403).json({
         success: false,
@@ -330,8 +344,11 @@ export const deleteOrArchiveStudentById = async (req, res) => {
         message: "Étudiant supprimé avec succès",
       });
     } else if (action === "archive") {
-      student.archivee = true; // Set the archivee attribute to true
-      await student.save();
+      // Archive the student by updating only the `archivee` field
+      await User.updateOne(
+        { _id: id },
+        { $set: { archivee: true } } // Only update the `archivee` field
+      );
       return res.status(200).json({
         success: true,
         message: "Étudiant archivé avec succès",
