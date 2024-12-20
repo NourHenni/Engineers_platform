@@ -1,6 +1,6 @@
 import cron from "node-cron";
 import User from "../models/userModel.js";
-import nodemailer from 'nodemailer';
+import nodemailer from "nodemailer";
 import Periode from "../models/periodeModel.js";
 import moment from "moment";
 // ou tout autre service de notification
@@ -24,7 +24,7 @@ const sendMonthlyNotification = async () => {
     for (const enseignant of enseignants) {
       const mailOptions = {
         from: "nourhenniadmi@gmail.com",
-        to: enseignant.adresseEmail,
+        to: "siwar.dakhlaoui@istic.ucar.tn",
         subject: "Mise à jour de l'avancement des cours",
         text: "Cher(e) enseignant(e),\n Ce message est un rappel pour vous inviter à mettre à jour l'état d'avancement des cours que vous dispensez.\n\nNous vous remercions de votre collaboration précieuse.\n\nCordialement,\nL’équipe administrative",
       };
@@ -39,12 +39,12 @@ const sendMonthlyNotification = async () => {
 };
 
 // Planification du cron job pour exécuter la tâche chaque mois (par exemple le 1er jour de chaque mois à 9h00)
-cron.schedule("0 9 1 * *", () => {
+cron.schedule("* * * * *", () => {
   console.log("Envoi de la notification mensuelle...");
   sendMonthlyNotification();
 });
 
-//yasss
+/*//yasss
 // Tâche planifiée
 cron.schedule("0 9 * * *", async () => {
   console.log("Tâche Cron: Vérification des retards...");
@@ -93,4 +93,4 @@ cron.schedule("0 9 * * *", async () => {
   } catch (error) {
     console.error("Erreur lors de la tâche Cron:", error.message);
   }
-});
+});*/
