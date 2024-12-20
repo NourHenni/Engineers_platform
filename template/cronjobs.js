@@ -23,7 +23,7 @@ const sendMonthlyNotification = async () => {
     for (const enseignant of enseignants) {
       const mailOptions = {
         from: "nourhenniadmi@gmail.com",
-        to: enseignant.adresseEmail,
+        to: "siwar.dakhlaoui@istic.ucar.tn",
         subject: "Mise à jour de l'avancement des cours",
         text: "Cher(e) enseignant(e),\n Ce message est un rappel pour vous inviter à mettre à jour l'état d'avancement des cours que vous dispensez.\n\nNous vous remercions de votre collaboration précieuse.\n\nCordialement,\nL’équipe administrative",
       };
