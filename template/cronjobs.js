@@ -39,12 +39,12 @@ const sendMonthlyNotification = async () => {
 };
 
 // Planification du cron job pour exécuter la tâche chaque mois (par exemple le 1er jour de chaque mois à 9h00)
-cron.schedule("* * * * *", () => {
+cron.schedule("0 9 1 * *", () => {
   console.log("Envoi de la notification mensuelle...");
   sendMonthlyNotification();
 });
 
-/*//yasss
+//yasss
 // Tâche planifiée
 cron.schedule("0 9 * * *", async () => {
   console.log("Tâche Cron: Vérification des retards...");
@@ -79,18 +79,22 @@ cron.schedule("0 9 * * *", async () => {
           from: "votre.email@gmail.com",
           to: user.email,
           subject: `Alerte de retard pour la période ${period.type}`,
-          text: `Bonjour ${user.nom},\n\nLa période de dépôt "${period.type}" prévue entre ${moment(
-            period.Date_Debut_depot
-          ).format("DD/MM/YYYY")} et ${moment(period.Date_Fin_depot).format(
+          text: `Bonjour ${user.nom},\n\nLa période de dépôt "${
+            period.type
+          }" prévue entre ${moment(period.Date_Debut_depot).format(
+            "DD/MM/YYYY"
+          )} et ${moment(period.Date_Fin_depot).format(
             "DD/MM/YYYY"
           )} est désormais en retard.\n\nVeuillez contacter l'administration pour régulariser votre situation.\n\nCordialement,\nL'équipe.`,
         };
 
         await transporter.sendMail(mailOptions);
-        console.log(`Email envoyé à ${user.email} pour la période ${period.type}`);
+        console.log(
+          `Email envoyé à ${user.email} pour la période ${period.type}`
+        );
       }
     }
   } catch (error) {
     console.error("Erreur lors de la tâche Cron:", error.message);
   }
-});*/
+});
