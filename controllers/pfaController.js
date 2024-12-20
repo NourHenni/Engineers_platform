@@ -1096,8 +1096,8 @@ export const choosePfaSubjects = async (req, res) => {
         choices: {
           $elemMatch: {
             priority: choice.priority, // Priorité spécifique
-            etudiantId: { $ne: studentId }, // Exclure l'étudiant actuel
-            ...(binomeId && { binomeId: { $ne: binomeId } }), // Exclure si c'est validé par le binôme
+            etudiantId: { $ne: studentId },
+            ...(binomeId && { binomeId: { $ne: binomeId } }),
           },
         },
       });
@@ -1191,8 +1191,8 @@ export const choosePfaSubjects = async (req, res) => {
 
 export const updateAcceptedPfa = async (req, res) => {
   try {
-    const studentId = req.auth.userId; // ID de l'étudiant récupéré via JWT
-    const { acceptedPfa } = req.body; // Sujet accepté fourni par le corps de la requête
+    const studentId = req.auth.userId;
+    const { acceptedPfa } = req.body;
 
     if (!acceptedPfa) {
       return res.status(400).json({
@@ -1201,7 +1201,6 @@ export const updateAcceptedPfa = async (req, res) => {
       });
     }
 
-    // Rechercher tous les PFAs contenant des choix faits par cet étudiant
     const pfas = await pfaModel.find({
       "choices.etudiantId": studentId,
     });
@@ -1219,7 +1218,7 @@ export const updateAcceptedPfa = async (req, res) => {
         (choice) =>
           choice.etudiantId.toString() === studentId &&
           choice.acceptedPfa === undefined &&
-          pfa.code_pfa === acceptedPfa // Vérifie si le code du PFA correspond
+          pfa.code_pfa === acceptedPfa
       )
     );
 
@@ -1236,7 +1235,7 @@ export const updateAcceptedPfa = async (req, res) => {
       {
         $set: {
           "choices.$.acceptedPfa": acceptedPfa, // Ajoute le sujet accepté au choix
-          etatAffectation: "affected", // Marque le sujet comme affecté
+          etatAffectation: "affected",
         },
       }
     );
