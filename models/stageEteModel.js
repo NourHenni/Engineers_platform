@@ -43,40 +43,33 @@ const stageEteSchema = new mongoose.Schema(
       type: String,
       enum: ["Valide", "Non valide"],
       default: "Non valide",
-     
     },
     statutDepot: {
       type: String,
-      enum: ["Depose", "Non depose"],
+      enum: ["Depose", "Non depose", "Depose avec retard"],
       default: "Non depose",
-      
     },
 
     soutenance: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "SoutenanceStageEte",
-      },
-      publie: { type: Boolean, default: false }, // Champ pour gérer la publication
-      etudiant: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "User", // Référence au modèle User
-        
-      },
-      enseignant: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "User", // Référence au modèle User
-      },
-      
-        rapport: { type: String, required: true },
-        attestation: { type: String, required: true },
-        ficheEvaluation: { type: String, required: true },
-      
-      
-      
-      
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "SoutenanceStageEte",
+    },
+    publie: { type: Boolean, default: false }, // Champ pour gérer la publication
+    etudiant: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User", // Référence au modèle User
+    },
+    enseignant: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User", // Référence au modèle User
+    },
+
+    rapport: { type: String, required: true },
+    attestation: { type: String, required: true },
+    ficheEvaluation: { type: String, required: true },
   },
   {
-    timestamps: true, 
+    timestamps: true,
   }
 );
 

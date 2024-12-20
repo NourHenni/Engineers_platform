@@ -17,17 +17,16 @@ const pfaSchema = new mongoose.Schema(
 
     estBinome: { type: Boolean, required: false },
 
-    // Gestion des choix des sujets
     choices: [
       {
         etudiantId: {
           type: mongoose.Schema.Types.ObjectId,
           ref: "User",
-        }, // Étudiant principal
+        },
         binomeId: {
           type: mongoose.Schema.Types.ObjectId,
           ref: "User",
-        }, // Binôme si applicable
+        },
         priority: {
           type: Number,
           validate: {
@@ -75,11 +74,13 @@ const pfaSchema = new mongoose.Schema(
       ref: "User", // Référence au modèle `User`
       required: true,
     },
-    etudiant: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User", // Référence au modèle `User` pour l'étudiant
-      required: false, // Pas obligatoire, car tous les sujets peuvent ne pas avoir un étudiant assigné
-    },
+    etudiants: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User", // Référence au modèle `User` pour l'étudiant
+        required: false, // Pas obligatoire, car tous les sujets peuvent ne pas avoir un étudiant assigné
+      },
+    ],
   },
   {
     timestamps: true,

@@ -15,9 +15,13 @@ import {
   createEnseignant,
   deleteOrArchiveEnseignantById,
   addStudentsFromFile,
+  addTeachersFromFile,
 } from "../controllers/UserController.js";
 import { authMiddleware } from "../middellwares/authMiddellware.js";
-import { isAdmin } from "../middellwares/roleMiddellware.js";
+import {
+  isAdmin,
+  isAdminOrEnseignant,
+} from "../middellwares/roleMiddellware.js";
 
 import multer from "multer"; // Import multer to handle file uploads
 
@@ -46,7 +50,7 @@ router.post("/students", authMiddleware, isAdmin, upload, async (req, res) => {
 });
 
 // Other routes
-router.get("/students", authMiddleware, isAdmin, getEtudiants);
+router.get("/students", authMiddleware, isAdminOrEnseignant, getEtudiants);
 router.get("/students/:id", authMiddleware, isAdmin, getEtudiantById);
 router.patch("/students/:id", authMiddleware, isAdmin, updateEtudiantById);
 router.patch(
@@ -63,7 +67,22 @@ router.delete(
 );
 
 // Routes for Enseignants (Teachers)
-router.post("/teachers", authMiddleware, isAdmin, createEnseignant);
+router.post("/teachers", authMiddleware, isAdmin, upload, async (req, res) => {
+  try {
+    if (req.file) {
+      // If a file is uploaded, handle batch teacher creation from the file
+      return addTeachersFromFile(req, res);
+    } else {
+      // If no file is uploaded, proceed with creating a single teacher
+      return createEnseignant(req, res);
+    }
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+});
 router.get("/teachers", authMiddleware, isAdmin, getEnseignants);
 router.get("/teachers/:id", authMiddleware, getEnseignantById);
 router.patch("/teachers/:id", authMiddleware, updateEnseignantById);

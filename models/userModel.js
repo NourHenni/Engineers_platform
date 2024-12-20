@@ -17,7 +17,7 @@ const userSchema = new mongoose.Schema(
     },
     genre: {
       type: String,
-      enum: ["homme", "femme"],
+      enum: ["M", "F"],
       required: true,
     },
     dateDeNaissance: {
@@ -67,22 +67,37 @@ const userSchema = new mongoose.Schema(
       required: true,
     },
 
-    isFirstSend: { type: Boolean, default: false },
+    isFirstSendPfa: { type: Boolean, default: false },
+    isFirstSendEte: { type: Boolean, default: false },
     niveau: { type: String, enum: ["1ING", "2ING", "3ING"] },
 
-    dateDeNaissance: {
-      type: Date, // Using Date type for storing dates
-      required: true, // Assuming it is mandatory
+    isGraduated: {
+      type: String,
+      enum: ["graduated", "not_graduated"],
     },
+
     archivee: {
       type: Boolean, // Boolean type to indicate true or false
       default: false, // Default value is set to false
     },
-
+    matieres: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "matieres",
+        required: false,
+      },
+    ],
     semestre: {
       type: String,
       enum: ["S1", "S2", "S3", "S4", "S5"],
-      required: true,
+    },
+    situation: {
+      type: String,
+      enum: ["nouveau", "redoublant", "diplome"],
+    },
+    grade: {
+      type: String,
+      required: false,
     },
   },
 
