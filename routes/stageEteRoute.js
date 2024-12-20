@@ -10,6 +10,7 @@ import {
   isAdmin,
   isEnseignant,
   isAdminOrEnseignant,
+  isStillStudent,
 } from "../middellwares/roleMiddellware.js";
 import { upload } from "../middellwares/uploadMiddellware.js";
 import { getStageDetails } from "../controllers/stageEteController.js";
@@ -27,11 +28,16 @@ import { updatePeriod } from "../controllers/stageEteController.js";
 
 const router = express.Router();
 
+router.post("/:niveau/open", authMiddleware, isAdmin, addPeriod);
+router.get("/:niveau/open", authMiddleware, isAdmin, getAllPeriods);
+router.patch("/:niveau/open", authMiddleware, isAdmin, updatePeriod);
+
 // Route : POST /internship/:type/post
 router.post(
-  "/internship/:type/post",
+  "/:type/post",
   authMiddleware,
   isEtudiant,
+  isStillStudent,
   // upload.array("files", 3),
   upload.fields([
     { name: "rapport", maxCount: 1 },
@@ -40,16 +46,11 @@ router.post(
   ]),
   postInternship
 );
-router.get("/internship/:type", authMiddleware, isAdmin, getInternshipsByType);
+router.get("/:type", authMiddleware, isAdmin, getInternshipsByType);
 router.get("/teachers", authMiddleware, isAdmin, getEnseignants);
-router.get(
-  "/internship/:type/:id",
-  authMiddleware,
-  isAdminOrEnseignant,
-  getStageDetails
-);
+router.get("/:type/:id", authMiddleware, isAdminOrEnseignant, getStageDetails);
 router.post(
-  "/internship/:type/planning/assign",
+  "/:type/planning/assign",
   authMiddleware,
   isAdmin,
   assignTeachersToStages
@@ -68,16 +69,12 @@ router.post(
 );
 // Endpoint pour envoyer le planning par email
 router.post("/:type/planning/send", authMiddleware, isAdmin, sendPlanning);
-
-router.post(
-  "/internship/:type/:id",
+router.get(
+  "/:type/assign/tome",
   authMiddleware,
   isEnseignant,
-  planifierSoutenance
+  getAssignedStages
 );
-router.get("/:type/sing", authMiddleware, isEnseignant, getAssignedStages);
-router.post("/:type/open", authMiddleware, isAdmin, addPeriod);
-router.get("/:type/open", authMiddleware, isAdmin, getAllPeriods);
-router.patch("/internship/:type/open", updatePeriod);
+router.post("/:type/:id", authMiddleware, isEnseignant, planifierSoutenance);
 
 export default router;

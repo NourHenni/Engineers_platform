@@ -13,8 +13,8 @@ const defaultUsers = [
     role: "admin",
     dateDeNaissance: "1980-01-01", // Add birthdate for admin
   },
-  {
-    nom: "Teacher",
+  //{
+  /* nom: "Teacher",
     prenom: "User",
     cin: 87654321,
     adresseEmail: "teacher@example.com",
@@ -30,7 +30,7 @@ const defaultUsers = [
     password: "student123", // Plaintext password
     role: "etudiant",
     dateDeNaissance: "2000-06-15", // Add birthdate for student
-  },
+  },*/
 ];
 
 export const seedDatabase = async () => {
@@ -56,8 +56,3 @@ export const seedDatabase = async () => {
     console.error("Error seeding database:", error);
   }
 };
-
-
-
-
-

@@ -1,15 +1,31 @@
 import Matiere from "../models/matiereModel.js";
 
 import nodemailer from "nodemailer";
-
+import Competence from "../models/competenceModel.js";
 import User from "../models/userModel.js";
 
 // Créer une nouvelle matière
 export const createMatiere = async (req, res) => {
   try {
     const matiere = new Matiere(req.body);
-    console.log("Objet Matiere créé :", matiere);
+
     await matiere.save();
+    // Mettre à jour les compétences associées
+    if (req.body.competences && req.body.competences.length > 0) {
+      for (const competenceId of req.body.competences) {
+        const competence = await Competence.findById(competenceId);
+        if (!competence) {
+          console.warn(`Compétence avec l'ID ${competenceId} introuvable.`);
+          continue;
+        }
+
+        // Ajouter l'ID de la matière à la liste des matières de la compétence
+        if (!competence.matieres.includes(matiere._id)) {
+          competence.matieres.push(matiere._id);
+          await competence.save(); // Sauvegarder la mise à jour
+        }
+      }
+    }
     res.status(201).json(matiere);
   } catch (error) {
     res.status(400).json({ error: error.message });
@@ -79,97 +95,131 @@ export const publishOrHideMatieres = async (req, res) => {
   }
 };
 
-
 export const updateAvancement = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { chapitres, sections } = req.body; // Object contenant l'avancement des chapitres ou des sections avec dates
+  const { id } = req.params; // ID de la matière
+  const { chapitreIndex, sectionIndex, nouveauStatut } = req.body;
 
-    // Trouver la matière par ID
-    const materie = await Materie.findById(id);
-    if (!materie) {
+  try {
+    // Trouver la matière
+    const matiere = await Matiere.findById(id);
+
+    if (!matiere) {
       return res.status(404).json({ message: "Matière non trouvée" });
     }
 
-    // Mettre à jour l'avancement des chapitres ou sections
-    if (chapitres) {
-      chapitres.forEach((chapitre) => {
-        const chapitreIndex = materie.Curriculum.findIndex(
-          (c) => c.titreChapitre === chapitre.titreChapitre
-        );
-        if (chapitreIndex !== -1) {
-          materie.Curriculum[chapitreIndex].AvancementChap =
-            chapitre.AvancementChap;
-          chapitre.sections.forEach((section) => {
-            const sectionIndex = materie.Curriculum[
-              chapitreIndex
-            ].sections.findIndex((s) => s.nomSection === section.nomSection);
-            if (sectionIndex !== -1) {
-              materie.Curriculum[chapitreIndex].sections[
-                sectionIndex
-              ].AvancementSection = section.AvancementSection;
-              materie.Curriculum[chapitreIndex].sections[
-                sectionIndex
-              ].DateModification = section.DateModification;
-            }
-          });
-        }
-      });
+    // Vérifier l'existence du chapitre
+    const chapitre = matiere.Curriculum[chapitreIndex];
+    if (!chapitre) {
+      return res.status(400).json({ message: "Chapitre invalide" });
     }
 
-    // Sauvegarder les changements
-    await materie.save();
-
-    // Fonction pour envoyer un email
-    const sendEmail = async (to, subject, text) => {
-      let transporter = nodemailer.createTransport({
-        service: "gmail", // Utiliser votre fournisseur d'email
-        auth: {
-          user: process.env.EMAIL_USER, // Votre adresse email
-          pass: process.env.EMAIL_PASSWORD, // Votre mot de passe
-
-          user: "votre_email@gmail.com", // Remplacez par votre email
-          pass: "votre_mot_de_passe", // Remplacez par votre mot de passe
-        },
-      });
-
-      let mailOptions = {
-        from: "votre_email@gmail.com", // Remplacez par votre email
-        to: to,
-        subject: subject,
-        text: text,
-      };
-
-      await transporter.sendMail(mailOptions);
-    };
-
-    // Envoi des notifications
-    // Envoi d'un mail à l'admin
-    const adminEmail = "admin@example.com"; // Email de l'admin
-    await sendEmail(
-      adminEmail,
-      "Mise à jour de l'avancement",
-      "L'avancement d'une matière a été mis à jour."
-    );
-
-    // Envoi des mails aux étudiants
-    const studentEmails = materie.etudiants || []; // Liste des emails des étudiants concernés
-    for (let email of studentEmails) {
-      await sendEmail(
-        email,
-        "Mise à jour de l'avancement de la matière",
-        "Votre matière a été mise à jour. Veuillez vérifier votre progression."
-      );
+    // Vérifier l'existence de la section
+    const section = chapitre.sections[sectionIndex];
+    if (!section) {
+      return res.status(400).json({ message: "Section invalide" });
     }
 
-    // Répondre avec la matière mise à jour
-    res.status(200).json(materie);
+    // Mettre à jour le statut de la section
+    section.AvancementSection = nouveauStatut;
+
+    // Ajouter la date de fin si la section est terminée
+    if (nouveauStatut === "Terminee") {
+      section.dateFinSection = new Date();
+    }
+
+    // Ajouter la date de fin si le chapitre est terminé
+    if (nouveauStatut === "Terminee") {
+      chapitre.dateFinChap = new Date();
+    }
+
+    // Si toutes les sections du chapitre sont "terminé", mettre à jour le statut du chapitre
+    if (chapitre.sections.every((s) => s.AvancementSection === "Terminee")) {
+      chapitre.AvancementChap = "Terminee";
+    } else if (
+      chapitre.sections.some((s) => s.AvancementSection === "EnCours")
+    ) {
+      chapitre.AvancementChap = "EnCours";
+    } else {
+      chapitre.AvancementChap = "NonCommencee";
+    }
+    // Activer automatiquement la section suivante si la section actuelle est terminée
+    if (nouveauStatut === "Terminee" && chapitre.sections[sectionIndex + 1]) {
+      chapitre.sections[sectionIndex + 1].AvancementSection = "EnCours";
+      chapitre.AvancementChap = "EnCours";
+    }
+    // Enregistrer les modifications
+    await matiere.save();
+    // Récupérer les étudiants concernés
+    const etudiants = await User.find({ role: "etudiant", matieres: id });
+
+    if (!etudiants || etudiants.length === 0) {
+      return res.status(400).json({ message: "Aucun étudiant trouvé" });
+    }
+    // Envoyer une réponse avec les détails mis à jour
+    res.status(200).json({
+      message: "Avancement mis à jour et notifications envoyées avec succès",
+      matiere,
+    });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: "Erreur serveur" });
-  }};
+    console.error("Erreur lors de la mise à jour de l'avancement :", error);
+    res.status(500).json({ error: error.message });
+  }
 
+  // Notifier l'admin et les étudiants
+  const admin = await User.findOne({ role: "admin" });
 
+  // Configuration du transporteur Nodemailer
+  const transporter = nodemailer.createTransport({
+    service: "gmail",
+    host: "smtp.gmail.com",
+    port: 465,
+    auth: {
+      user: process.env.MAILER_EMAIL_ID, // Votre adresse email
+      pass: process.env.MAILER_PASSWORD, // Votre mot de passe
+    },
+  });
+  const matiere = await Matiere.findById(id);
 
-export default { createMatiere, getMatieres };
+  // Vérifier l'existence du chapitre
+  const chapitre = matiere.Curriculum[chapitreIndex];
+  if (!chapitre) {
+    return res.status(400).json({ message: "Chapitre invalide" });
+  }
+  // Vérifier l'existence de la section
+  const section = chapitre.sections[sectionIndex];
+  if (!section) {
+    return res.status(400).json({ message: "Section invalide" });
+  }
+  // Envoi de l'email à l'administrateur
+  if (admin) {
+    const adminMailOptions = {
+      from: process.env.MAILER_EMAIL_ID,
+      to: admin.adresseEmail,
+      subject: `Mise à jour de l'avancement pour la matière : "${matiere.Nom}"`,
+      text: `Bonjour ${admin.nom},
 
+La section "${section.nomSection}" du chapitre "${chapitre.titreChapitre}" a été mise à jour avec le statut : "${nouveauStatut}".
+
+Cordialement,`,
+    };
+    await transporter.sendMail(adminMailOptions);
+  }
+  const etudiants = await User.find({ role: "etudiant", matieres: id });
+
+  // Envoi de l'email aux étudiants
+  for (const etudiant of etudiants) {
+    const etudiantMailOptions = {
+      from: process.env.MAILER_EMAIL_ID,
+      to: etudiant.adresseEmail,
+      subject: `Mise à jour de l'avancement pour la matière : "${matiere.Nom}"`,
+      text: `Bonjour ${etudiant.nom},
+
+La section "${section.nomSection}" du chapitre "${chapitre.titreChapitre}" a été mise à jour avec le statut : "${nouveauStatut}".
+
+Vous pouvez consulter la progression de cette matière sur la plateforme.
+
+Cordialement,`,
+    };
+    await transporter.sendMail(etudiantMailOptions);
+  }
+};

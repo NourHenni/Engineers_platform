@@ -74,11 +74,13 @@ const pfaSchema = new mongoose.Schema(
       ref: "User", // Référence au modèle `User`
       required: true,
     },
-    etudiant: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User", // Référence au modèle `User` pour l'étudiant
-      required: false, // Pas obligatoire, car tous les sujets peuvent ne pas avoir un étudiant assigné
-    },
+    etudiants: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User", // Référence au modèle `User` pour l'étudiant
+        required: false, // Pas obligatoire, car tous les sujets peuvent ne pas avoir un étudiant assigné
+      },
+    ],
   },
   {
     timestamps: true,

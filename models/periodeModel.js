@@ -28,6 +28,10 @@ const periodeSchema = new mongoose.Schema(
       enum: ["Summer Internship", "PFA Project"],
       required: true,
     },
+    niveau: {
+      type: String,
+      enum: ["premiereannee", "deuxiemeannee"],
+    },
     PeriodState: {
       type: String,
       required: true,

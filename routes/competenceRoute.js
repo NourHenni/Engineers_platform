@@ -16,10 +16,10 @@ import {
 } from "../controllers/competenceController.js";
 
 // Routes CRUD
-router.post("/competences", authMiddleware, isAdmin, createCompetence);
-router.get("/competences", authMiddleware, isAdminOrEnseignant, getCompetences);
-router.get("/competences/:id", authMiddleware, isAdmin, getCompetenceById);
-router.patch("/competences/:id", authMiddleware, isAdmin, updateCompetence);
-router.delete("/competences/:id", authMiddleware, isAdmin, deleteCompetence);
+router.post("/", authMiddleware, isAdmin, createCompetence);
+router.get("/", authMiddleware, isAdminOrEnseignant, getCompetences);
+router.get("/:id", authMiddleware, isAdmin, getCompetenceById);
+router.patch("/:id", authMiddleware, isAdmin, updateCompetence);
+router.delete("/:id", authMiddleware, isAdmin, deleteCompetence);
 
 export default router;

@@ -1,10 +1,8 @@
 import User from "../models/userModel.js";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
-import xlsx from 'xlsx';
+import xlsx from "xlsx";
 import { sendEmail } from "../services/emailservice.js";
-
-
 
 ////////////////////////ALL USERS//////////////////////////
 export const login = async (req, res) => {
@@ -20,12 +18,16 @@ export const login = async (req, res) => {
     // Check if the user is archived
     if (foundUser.archivee) {
       return res.status(403).json({
-        message: "Votre compte est archivé. Veuillez contacter l'administrateur.",
+        message:
+          "Votre compte est archivé. Veuillez contacter l'administrateur.",
       });
     }
 
     // Compare the provided password with the hashed password stored in the database
-    const validPassword = await bcrypt.compare(req.body.password, foundUser.password);
+    const validPassword = await bcrypt.compare(
+      req.body.password,
+      foundUser.password
+    );
     if (!validPassword) {
       return res.status(401).json({
         message: "CIN ou mot de passe incorrect",
@@ -34,7 +36,7 @@ export const login = async (req, res) => {
 
     // Generate JWT token
     const token = jwt.sign({ userId: foundUser._id }, process.env.JWT_SECRET, {
-      expiresIn: "1h",
+      expiresIn: "24h",
     });
 
     // Respond with the token
@@ -78,7 +80,9 @@ export const createEtudiant = async (req, res) => {
     }
 
     // Check if the email already exists in the database
-    const foundUser = await User.findOne({ adresseEmail: req.body.adresseEmail });
+    const foundUser = await User.findOne({
+      adresseEmail: req.body.adresseEmail,
+    });
     if (foundUser) {
       return res.status(400).json({
         success: false,
@@ -163,7 +167,7 @@ export const createEtudiant = async (req, res) => {
 };
 export const getEtudiants = async (req, res) => {
   try {
-    const users = await User.find({ role: 'etudiant' });
+    const users = await User.find({ role: "etudiant" });
     res.status(200).json({
       model: users,
       message: "success",
@@ -177,7 +181,7 @@ export const getEtudiants = async (req, res) => {
 export const getEtudiantById = async (req, res) => {
   try {
     const { id } = req.params;
-    const user = await User.findOne({ _id: id, role: 'etudiant' });
+    const user = await User.findOne({ _id: id, role: "etudiant" });
 
     if (!user) {
       return res.status(404).json({
@@ -266,6 +270,7 @@ export const updateEtudiantPassword = async (req, res) => {
     const { id } = req.params;
     const { nouveau, confirmationNouveau } = req.body;
 
+    // Check if the new password matches the confirmation
     if (nouveau !== confirmationNouveau) {
       return res.status(400).json({
         success: false,
@@ -273,7 +278,8 @@ export const updateEtudiantPassword = async (req, res) => {
       });
     }
 
-    const user = await User.findOne({ _id: id, role: 'etudiant' });
+    // Find the user by ID and role
+    const user = await User.findOne({ _id: id, role: "etudiant" });
     if (!user) {
       return res.status(404).json({
         success: false,
@@ -281,18 +287,36 @@ export const updateEtudiantPassword = async (req, res) => {
       });
     }
 
+    // Hash the new password
     const hashedPassword = await bcrypt.hash(nouveau, 10);
-    user.password = hashedPassword;
-    await user.save();
 
-    // Send the email with the new password
-    await sendEmail(user.adresseEmail, user.nom, user.prenom, user.cin, nouveau);
+    // Update the password directly in the database
+    await User.updateOne({ _id: id }, { $set: { password: hashedPassword } });
 
+    // Optionally, send a notification email
+    try {
+      await sendEmail(
+        user.adresseEmail,
+        user.nom,
+        user.prenom,
+        user.cin,
+        nouveau
+      );
+    } catch (emailError) {
+      console.error("Échec de l'envoi de l'email:", emailError.message);
+      return res.status(500).json({
+        success: false,
+        message: "Mot de passe modifié, mais l'email n'a pas pu être envoyé.",
+      });
+    }
+
+    // Respond with success
     res.status(200).json({
       success: true,
       message: "Mot de passe modifié avec succès et un email a été envoyé",
     });
   } catch (error) {
+    // Handle unexpected errors
     res.status(500).json({
       success: false,
       message: error.message,
@@ -314,7 +338,7 @@ export const deleteOrArchiveStudentById = async (req, res) => {
       });
     }
 
-    // Check if the user is an student
+    // Check if the user is a student
     if (student.role !== "etudiant") {
       return res.status(403).json({
         success: false,
@@ -330,8 +354,11 @@ export const deleteOrArchiveStudentById = async (req, res) => {
         message: "Étudiant supprimé avec succès",
       });
     } else if (action === "archive") {
-      student.archivee = true; // Set the archivee attribute to true
-      await student.save();
+      // Archive the student by updating only the `archivee` field
+      await User.updateOne(
+        { _id: id },
+        { $set: { archivee: true } } // Only update the `archivee` field
+      );
       return res.status(200).json({
         success: true,
         message: "Étudiant archivé avec succès",
@@ -395,10 +422,25 @@ export const addStudentsFromFile = async (req, res) => {
       } = student;
 
       // Validate required fields
-      if (!nom || !prenom || !cin || !adresseEmail || !dateDeNaissance || !genre || !gouvernorat || !addresse || !ville || !code_postal || !nationalite || !telephone || !annee_entree_isamm) {
+      if (
+        !nom ||
+        !prenom ||
+        !cin ||
+        !adresseEmail ||
+        !dateDeNaissance ||
+        !genre ||
+        !gouvernorat ||
+        !addresse ||
+        !ville ||
+        !code_postal ||
+        !nationalite ||
+        !telephone ||
+        !annee_entree_isamm
+      ) {
         return res.status(400).json({
           success: false,
-          message: "Incorrect file format. Ensure all required fields are present.",
+          message:
+            "Incorrect file format. Ensure all required fields are present.",
         });
       }
 
@@ -482,7 +524,9 @@ export const createEnseignant = async (req, res) => {
     }
 
     // Check if the email already exists in the database
-    const foundUser = await User.findOne({ adresseEmail: req.body.adresseEmail });
+    const foundUser = await User.findOne({
+      adresseEmail: req.body.adresseEmail,
+    });
     if (foundUser) {
       return res.status(400).json({
         success: false,
@@ -528,11 +572,8 @@ export const createEnseignant = async (req, res) => {
     // Remove the password from the response data for security
     const { password, ...newUser } = user.toObject();
 
-
-
-
-     // Send the email with CIN and password
-     try {
+    // Send the email with CIN and password
+    try {
       await sendEmail(
         req.body.adresseEmail,
         req.body.prenom,
@@ -561,7 +602,7 @@ export const createEnseignant = async (req, res) => {
 };
 export const getEnseignants = async (req, res) => {
   try {
-    const users = await User.find({ role: 'enseignant' });
+    const users = await User.find({ role: "enseignant" });
     res.status(200).json({
       model: users,
       message: "success",
@@ -575,7 +616,7 @@ export const getEnseignants = async (req, res) => {
 export const getEnseignantById = async (req, res) => {
   try {
     const { id } = req.params;
-    const user = await User.findOne({ _id: id, role: 'enseignant' });
+    const user = await User.findOne({ _id: id, role: "enseignant" });
 
     if (!user) {
       return res.status(404).json({
@@ -602,7 +643,7 @@ export const updateEnseignantById = async (req, res) => {
     const updateData = req.body;
 
     // Retrieve the existing user before update to compare CIN
-    const existingUser = await User.findOne({ _id: id, role: 'enseignant' });
+    const existingUser = await User.findOne({ _id: id, role: "enseignant" });
     if (!existingUser) {
       return res.status(404).json({
         success: false,
@@ -614,7 +655,7 @@ export const updateEnseignantById = async (req, res) => {
     const isCINUpdated = existingUser.cin !== updateData.cin;
 
     const updatedUser = await User.findOneAndUpdate(
-      { _id: id, role: 'enseignant' },
+      { _id: id, role: "enseignant" },
       updateData,
       { new: true, runValidators: true }
     );
@@ -628,7 +669,13 @@ export const updateEnseignantById = async (req, res) => {
 
     // If CIN is updated, send an email
     if (isCINUpdated) {
-      await sendEmail(updatedUser.adresseEmail, updatedUser.nom, updatedUser.prenom, updatedUser.cin, updatedUser.password);
+      await sendEmail(
+        updatedUser.adresseEmail,
+        updatedUser.nom,
+        updatedUser.prenom,
+        updatedUser.cin,
+        updatedUser.password
+      );
     }
 
     res.status(200).json({
@@ -655,7 +702,7 @@ export const updateEnseignantPassword = async (req, res) => {
       });
     }
 
-    const user = await User.findOne({ _id: id, role: 'enseignant' });
+    const user = await User.findOne({ _id: id, role: "enseignant" });
     if (!user) {
       return res.status(404).json({
         success: false,
@@ -665,10 +712,16 @@ export const updateEnseignantPassword = async (req, res) => {
 
     const hashedPassword = await bcrypt.hash(nouveau, 10);
     user.password = hashedPassword;
-    await user.save();
+    await User.updateOne({ _id: id }, { $set: { password: hashedPassword } });
 
     // Send email with the new password
-    await sendEmail(user.adresseEmail, user.nom, user.prenom, user.cin, nouveau);
+    await sendEmail(
+      user.adresseEmail,
+      user.nom,
+      user.prenom,
+      user.cin,
+      nouveau
+    );
 
     res.status(200).json({
       success: true,
@@ -687,7 +740,7 @@ export const deleteOrArchiveEnseignantById = async (req, res) => {
     const { action } = req.body; // action can be 'delete' or 'archive'
 
     // Find the enseignant by ID and check if they exist
-    const enseignant = await User.findOne({ _id: id, role: 'enseignant' });
+    const enseignant = await User.findOne({ _id: id, role: "enseignant" });
 
     if (!enseignant) {
       return res.status(404).json({
@@ -697,15 +750,18 @@ export const deleteOrArchiveEnseignantById = async (req, res) => {
     }
 
     // Perform the action based on the 'action' parameter
-    if (action === 'delete') {
+    if (action === "delete") {
       await User.findByIdAndDelete(id); // Permanently delete the enseignant
       return res.status(200).json({
         success: true,
         message: "Utilisateur supprimé avec succès",
       });
-    } else if (action === 'archive') {
+    } else if (action === "archive") {
       enseignant.archivee = true; // Set the archivee attribute to true
-      await enseignant.save();
+      await User.updateOne(
+        { _id: id },
+        { $set: { archivee: true } } // Only update the `archivee` field
+      );
       return res.status(200).json({
         success: true,
         message: "Utilisateur archivé avec succès",
@@ -724,7 +780,6 @@ export const deleteOrArchiveEnseignantById = async (req, res) => {
   }
 };
 export const addTeachersFromFile = async (req, res) => {
-
   try {
     if (!req.file) {
       return res.status(400).json({
@@ -759,10 +814,26 @@ export const addTeachersFromFile = async (req, res) => {
       } = teacher;
 
       // Validate required fields
-      if (!nom || !prenom || !cin || !adresseEmail || !dateDeNaissance || !genre || !gouvernorat || !addresse || !ville || !code_postal || !nationalite || !telephone || !annee_entree_isamm || !grade) {
+      if (
+        !nom ||
+        !prenom ||
+        !cin ||
+        !adresseEmail ||
+        !dateDeNaissance ||
+        !genre ||
+        !gouvernorat ||
+        !addresse ||
+        !ville ||
+        !code_postal ||
+        !nationalite ||
+        !telephone ||
+        !annee_entree_isamm ||
+        !grade
+      ) {
         return res.status(400).json({
           success: false,
-          message: "Incorrect file format. Ensure all required fields are present.",
+          message:
+            "Incorrect file format. Ensure all required fields are present.",
         });
       }
 
@@ -818,20 +889,3 @@ export const addTeachersFromFile = async (req, res) => {
   }
 };
 ////////////////////////////////////////////////////////////////////
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
