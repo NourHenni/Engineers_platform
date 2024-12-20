@@ -1063,7 +1063,7 @@ export const choosePfaSubjects = async (req, res) => {
         return res.status(400).json({
           success: false,
           message:
-            "Le binôme a déjà effectué ses 3 choix. Vous ne pouvez pas l'ajouter.",
+            "Le binôme a déjà choisit ses 3 choix. Vous ne pouvez pas l'ajouter.",
         });
       }
     }
