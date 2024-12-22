@@ -152,23 +152,9 @@ export const ajouterSujetPfa = async (req, res) => {
       description,
       technologies,
       estBinome,
-      nomEtudiant1,
-      prenomEtudiant1,
-      nomEtudiant2,
-      prenomEtudiant2,
+      idEtudiant1,
+      idEtudiant2,
     } = req.body;
-
-    // Vérification des données obligatoires
-    if (!titreSujet || !description || !technologies) {
-      return res.status(400).json({ message: "Champs requis manquants." });
-    }
-
-    // Vérification du rôle de l'utilisateur connecté
-    if (req.auth.role !== "enseignant") {
-      return res.status(403).json({
-        message: "Accès interdit : seul un enseignant peut déposer un sujet.",
-      });
-    }
 
     // Vérification de la période
     const periode = await periodeModel.findOne({ type: "PFA Project" });
@@ -187,39 +173,34 @@ export const ajouterSujetPfa = async (req, res) => {
 
     let etudiants = [];
 
-    // Si estBinome est vrai, essayer de trouver deux étudiants si les informations sont données
     if (estBinome) {
-      if (nomEtudiant1 && prenomEtudiant1 && nomEtudiant2 && prenomEtudiant2) {
-        const etudiant1 = await userModel.findOne({
-          nom: nomEtudiant1,
-          prenom: prenomEtudiant1,
-          role: "etudiant",
-        });
+      // Si estBinome est vrai, les étudiants sont facultatifs
+      if (!idEtudiant1 && !idEtudiant2) {
+        console.warn("Aucun étudiant associé au sujet binôme.");
+      } else {
+        const etudiant1 = idEtudiant1
+          ? await userModel.findOne({ _id: idEtudiant1, role: "etudiant" })
+          : null;
+        const etudiant2 = idEtudiant2
+          ? await userModel.findOne({ _id: idEtudiant2, role: "etudiant" })
+          : null;
 
-        const etudiant2 = await userModel.findOne({
-          nom: nomEtudiant2,
-          prenom: prenomEtudiant2,
-          role: "etudiant",
-        });
+        if (etudiant1) etudiants.push(etudiant1._id);
+        if (etudiant2) etudiants.push(etudiant2._id);
 
-        if (!etudiant1 || !etudiant2) {
-          return res.status(404).json({
+        // Empêcher l'utilisation du même étudiant deux fois
+        if (idEtudiant1 && idEtudiant2 && idEtudiant1 === idEtudiant2) {
+          return res.status(400).json({
             message:
-              "Un ou les deux étudiants sont introuvables ou non valides.",
+              "Les deux identifiants d'étudiants doivent être différents.",
           });
         }
-
-        etudiants = [etudiant1._id, etudiant2._id];
-      } else {
-        // Si les informations des étudiants ne sont pas données, ne pas remplir etudiants
-        etudiants = []; // Vous pouvez aussi ne rien ajouter si vous ne voulez pas créer de relation.
       }
     } else {
-      // Si estBinome est faux, rechercher un seul étudiant si les informations sont données
-      if (nomEtudiant1 && prenomEtudiant1) {
+      // Si estBinome est faux, gérer un seul étudiant
+      if (idEtudiant1) {
         const etudiant = await userModel.findOne({
-          nom: nomEtudiant1,
-          prenom: prenomEtudiant1,
+          _id: idEtudiant1,
           role: "etudiant",
         });
 
@@ -231,9 +212,17 @@ export const ajouterSujetPfa = async (req, res) => {
 
         etudiants = [etudiant._id];
       }
+
+      // Si estBinome est faux et deux identifiants d'étudiants sont fournis
+      if (idEtudiant1 && idEtudiant2) {
+        return res.status(400).json({
+          message:
+            "Seul un étudiant peut être associé lorsque estBinome est faux.",
+        });
+      }
     }
 
-    // Générer un code PFA au format PFA2024-01
+    // Génération du code PFA
     const generateCodePfa = async () => {
       const currentYear = new Date().getFullYear();
       const lastPfa = await pfaModel.findOne().sort({ _id: -1 });
@@ -249,7 +238,6 @@ export const ajouterSujetPfa = async (req, res) => {
     };
 
     const codePfa = await generateCodePfa();
-
     // Création d'un sujet PFA
     const nouveauPfa = new pfaModel({
       code_pfa: codePfa,
@@ -282,7 +270,7 @@ export const ajouterSujetPfa = async (req, res) => {
     console.error("Erreur détectée :", error.message);
     return res
       .status(500)
-      .json({ message: ` Erreur serveur: ${error.message}` });
+      .json({ message: `Erreur serveur: ${error.message} ` });
   }
 };
 
@@ -374,10 +362,8 @@ export const modifyPfaSubject = async (req, res) => {
       description,
       technologies,
       estBinome,
-      nomEtudiant1,
-      prenomEtudiant1,
-      nomEtudiant2,
-      prenomEtudiant2,
+      idEtudiant1,
+      idEtudiant2,
     } = req.body;
 
     // Vérification du rôle de l'utilisateur (doit être enseignant)
@@ -430,37 +416,40 @@ export const modifyPfaSubject = async (req, res) => {
 
     // Si estBinome est vrai, essayer de trouver deux étudiants si les informations sont données
     if (estBinome) {
-      if (nomEtudiant1 && prenomEtudiant1 && nomEtudiant2 && prenomEtudiant2) {
-        const etudiant1 = await userModel.findOne({
-          nom: nomEtudiant1,
-          prenom: prenomEtudiant1,
-          role: "etudiant",
+      // Vérifier que les deux identifiants d'étudiants sont fournis
+      if (!idEtudiant1 || !idEtudiant2) {
+        return res.status(400).json({
+          message:
+            "Lorsque estBinome est vrai, deux identifiants d'étudiants doivent être fournis.",
         });
-
-        const etudiant2 = await userModel.findOne({
-          nom: nomEtudiant2,
-          prenom: prenomEtudiant2,
-          role: "etudiant",
-        });
-
-        if (!etudiant1 || !etudiant2) {
-          return res.status(404).json({
-            message:
-              "Un ou les deux étudiants sont introuvables ou non valides.",
-          });
-        }
-
-        etudiants = [etudiant1._id, etudiant2._id];
-      } else {
-        // Si les informations des étudiants ne sont pas données, ne pas remplir etudiants
-        etudiants = []; // Vous pouvez aussi ne rien ajouter si vous ne voulez pas créer de relation.
       }
+
+      const etudiant1 = await userModel.findOne({
+        _id: idEtudiant1,
+        role: "etudiant",
+      });
+      const etudiant2 = await userModel.findOne({
+        _id: idEtudiant2,
+        role: "etudiant",
+      });
+
+      if (!etudiant1 || !etudiant2) {
+        return res.status(404).json({
+          message: "Un ou les deux étudiants sont introuvables ou non valides.",
+        });
+      }
+      // Empêcher l'utilisation du même étudiant deux fois
+      if (idEtudiant1 === idEtudiant2) {
+        return res.status(400).json({
+          message: "Les deux identifiants d'étudiants doivent être différents.",
+        });
+      }
+      etudiants = [etudiant1._id, etudiant2._id];
     } else {
       // Si estBinome est faux, rechercher un seul étudiant si les informations sont données
-      if (nomEtudiant1 && prenomEtudiant1) {
+      if (idEtudiant1) {
         const etudiant = await userModel.findOne({
-          nom: nomEtudiant1,
-          prenom: prenomEtudiant1,
+          _id: idEtudiant1,
           role: "etudiant",
         });
 
@@ -472,8 +461,15 @@ export const modifyPfaSubject = async (req, res) => {
 
         etudiants = [etudiant._id];
       }
-    }
 
+      // Si estBinome est faux et deux identifiants d'étudiants sont fournis
+      if (idEtudiant1 && idEtudiant2) {
+        return res.status(400).json({
+          message:
+            "Seul un étudiant peut être associé lorsque estBinome est faux.",
+        });
+      }
+    }
     // Mettre à jour le tableau des étudiants dans le sujet
     sujet.etudiants = etudiants;
 
@@ -979,8 +975,8 @@ export const fetchPublishedPfa = async (req, res) => {
 
 export const choosePfaSubjects = async (req, res) => {
   try {
-    const studentId = req.auth.userId; // ID de l'étudiant récupéré via JWT
-    const { choices, binomeId, acceptedPfa } = req.body; // Liste des choix et ID unique du binôme (s'il existe)
+    const studentId = req.auth.userId; // ID de l'étudiant
+    const { choices, binomeId, acceptedPfa } = req.body;
 
     const foundEtudiant = await userModel.findOne({
       $and: [{ _id: studentId }, { niveau: "2ING" }],
@@ -988,13 +984,39 @@ export const choosePfaSubjects = async (req, res) => {
 
     if (!foundEtudiant) {
       return res.status(400).json({
-        message: " seul les étudiants en 2eme peuvent choisir des sujets PFA ",
+        message:
+          "Seuls les étudiants en 2ème année peuvent choisir des sujets PFA.",
+      });
+    }
+
+    // Vérifier si l'étudiant est déjà binôme dans 3 sujets
+    const binomeExistingCount = await pfaModel.aggregate([
+      {
+        $match: {
+          "choices.binomeIds.binomeId": studentId,
+        },
+      },
+      {
+        $group: {
+          _id: "$code_pfa",
+        },
+      },
+      {
+        $count: "total",
+      },
+    ]);
+
+    if (binomeExistingCount[0]?.total >= 3) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Vous ne pouvez pas choisir de sujets car vous êtes déjà binôme dans 3 sujets.",
       });
     }
 
     // Vérifier si l'étudiant a déjà effectué des choix
     const existingChoices = await pfaModel.findOne({
-      "choices.etudiantId": studentId,
+      "choices.etudiantsIds": studentId,
     });
 
     if (existingChoices) {
@@ -1005,7 +1027,7 @@ export const choosePfaSubjects = async (req, res) => {
       });
     }
 
-    // Validation 1 : Vérifier qu'il y a exactement 3 choix
+    // Validation 1 : Exactement 3 choix
     if (!choices || choices.length !== 3) {
       return res.status(400).json({
         success: false,
@@ -1014,7 +1036,7 @@ export const choosePfaSubjects = async (req, res) => {
       });
     }
 
-    // Validation 2 : Vérifier que les priorités sont uniques
+    // Validation 2 : Priorités uniques
     const uniquePriorities = new Set(choices.map((choice) => choice.priority));
     if (uniquePriorities.size !== 3) {
       return res.status(400).json({
@@ -1023,7 +1045,7 @@ export const choosePfaSubjects = async (req, res) => {
       });
     }
 
-    // Validation 3 : Vérifier qu'un étudiant ne choisit pas le même sujet avec toutes les priorités
+    // Validation 3 : Sujets uniques
     const uniqueSubjects = new Set(choices.map((choice) => choice.codePfa));
     if (uniqueSubjects.size !== 3) {
       return res.status(400).json({
@@ -1033,42 +1055,40 @@ export const choosePfaSubjects = async (req, res) => {
       });
     }
 
+    // Validation du binôme
+    let binome = null;
     if (binomeId) {
-      const binome = await userModel.findOne({
+      binome = await userModel.findOne({
         _id: binomeId,
         role: "etudiant",
+        niveau: "2ING",
       });
 
-      if (!binome) {
+      if (!binome || binomeId === studentId) {
         return res.status(400).json({
           success: false,
           message:
-            "Le binôme fourni n'existe pas ou n'a pas le rôle 'etudiant'.",
-        });
-      }
-
-      if (binomeId === studentId) {
-        return res.status(400).json({
-          success: false,
-          message: "Le binôme ne peut pas être le même étudiant.",
-        });
-      }
-
-      // Vérifier si le binôme a déjà fait 3 choix
-      const binomeChoicesCount = await pfaModel.countDocuments({
-        "choices.etudiantId": binomeId,
-      });
-
-      if (binomeChoicesCount >= 3) {
-        return res.status(400).json({
-          success: false,
-          message:
-            "Le binôme a déjà choisit ses 3 choix. Vous ne pouvez pas l'ajouter.",
+            "Le binôme est invalide ou identique à l'étudiant principal ou le binôme n'est pas en 2ING.",
         });
       }
     }
 
-    // Validation 5 : Vérifier chaque sujet
+    const binomeChoicesCount = await pfaModel.countDocuments({
+      $or: [
+        { "choices.etudiantsIds": studentId }, // Le binôme a déjà fait des choix seul
+        { "choices.binomeIds.binomeId": studentId }, // Le binôme apparaît comme binôme d'un autre étudiant
+      ],
+    });
+
+    if (binomeChoicesCount >= 3) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Le binôme a déjà effectué 3 choix ou est déjà binôme avec un autre étudiant. Vous ne pouvez pas l'ajouter.",
+      });
+    }
+
+    // Validation des sujets
     for (const choice of choices) {
       const pfa = await pfaModel.findOne({
         code_pfa: choice.codePfa,
@@ -1078,104 +1098,115 @@ export const choosePfaSubjects = async (req, res) => {
       if (!pfa) {
         return res.status(404).json({
           success: false,
-          message: `Le sujet avec le code ${choice.codePfa} est introuvable ou masqué .`,
+          message: `Le sujet ${choice.codePfa} est introuvable ou masqué.`,
         });
       }
 
-      // Vérifier si le sujet nécessite un binôme mais qu'aucun n'a été fourni
       if (pfa.estBinome && !binomeId) {
         return res.status(400).json({
           success: false,
-          message: `Le code ${pfa.code_pfa} du sujet ${pfa.titreSujet} nécessite un binôme. Veuillez entrer l'ID de votre binôme.`,
+          message: `Le sujet ${pfa.code_pfa} nécessite un binôme.`,
         });
       }
 
-      // Validation : Vérifier si le sujet est déjà choisi avec la même priorité par un autre étudiant
-      const existingChoice = await pfaModel.findOne({
-        code_pfa: choice.codePfa, // Sujet spécifique
-        choices: {
-          $elemMatch: {
-            priority: choice.priority, // Priorité spécifique
-            etudiantId: { $ne: studentId },
-            ...(binomeId && { binomeId: { $ne: binomeId } }),
-          },
-        },
-      });
-
-      if (existingChoice) {
-        return res.status(400).json({
-          success: false,
-          message: `Le sujet ${choice.codePfa} avec la priorité ${choice.priority} est déjà choisi par un autre étudiant. Veuillez choisir un autre sujet ou une autre priorité.`,
-        });
-      }
-
-      // Validation 6 : Vérifier si le sujet est déjà affecté
       if (pfa.etatAffectation === "affected") {
         return res.status(400).json({
           success: false,
-          message: `Le code ${pfa.code_pfa} du sujet ${pfa.titreSujet} est déjà affecté. Veuillez choisir un autre sujet.`,
+          message: `Le sujet ${choice.codePfa} est déjà affecté.`,
         });
       }
-    }
-    // Validation 6 : Vérifier que le sujet accepté est parmi les choix
-    if (acceptedPfa) {
-      const acceptedChoice = choices.find(
-        (choice) => choice.codePfa === acceptedPfa
-      );
-      if (!acceptedChoice) {
-        return res.status(400).json({
-          success: false,
-          message: "Le sujet accepté doit faire partie de vos choix.",
-        });
+
+      // Vérifier si le sujet est déjà accepté
+      if (
+        pfa.choices.some((c) => c.acceptedPfa?.etudiantsAcceptedIds?.length > 0)
+      ) {
+        if (acceptedPfa === choice.codePfa) {
+          return res.status(400).json({
+            success: false,
+            message: `Le sujet ${choice.codePfa} est déjà accepté par un autre étudiant ou binôme.`,
+          });
+        }
       }
     }
+
+    // Enregistrer les choix
     await Promise.all(
       choices.map(async (choice) => {
         const pfa = await pfaModel.findOne({ code_pfa: choice.codePfa });
 
-        // Définir le binomeId uniquement si le sujet nécessite un binôme
-        const choiceData = {
-          etudiantId: studentId,
-          priority: choice.priority,
-          binomeId: pfa.estBinome ? binomeId || null : null,
-        };
-
-        // Ajouter le choix au sujet pour l'étudiant principal
-        await pfaModel.updateOne(
-          { code_pfa: choice.codePfa },
-          {
-            $addToSet: { choices: choiceData },
-          },
-          { runValidators: true }
+        const existingChoice = pfa.choices.find(
+          (ch) => ch.priority === choice.priority
         );
 
-        // Si le sujet nécessite un binôme, ajouter le choix également pour le binôme
-        if (pfa.estBinome && binomeId) {
-          const binomeChoiceData = {
-            etudiantId: binomeId,
+        if (existingChoice) {
+          await pfaModel.updateOne(
+            {
+              code_pfa: choice.codePfa,
+              "choices.priority": choice.priority,
+            },
+            {
+              $addToSet: {
+                "choices.$.etudiantsIds": studentId,
+                "choices.$.binomeIds":
+                  pfa.estBinome && binomeId
+                    ? { etudiantId: studentId, binomeId }
+                    : [],
+              },
+            }
+          );
+        } else {
+          const choiceData = {
             priority: choice.priority,
-            binomeId: studentId, // Ajouter l'ID du principal comme binôme
+            etudiantsIds: [studentId],
+            binomeIds:
+              pfa.estBinome && binomeId
+                ? [{ etudiantId: studentId, binomeId }]
+                : [],
           };
 
           await pfaModel.updateOne(
             { code_pfa: choice.codePfa },
             {
-              $addToSet: { choices: binomeChoiceData },
-            },
-            { runValidators: true }
+              $addToSet: {
+                choices: choiceData,
+              },
+            }
           );
         }
       })
     );
-    // Mettre à jour le sujet accepté
+
+    // Gestion du sujet accepté
     if (acceptedPfa) {
+      const pfa = await pfaModel.findOne({ code_pfa: acceptedPfa });
+      if (
+        pfa.choices.some((c) => c.acceptedPfa?.etudiantsAcceptedIds?.length > 0)
+      ) {
+        return res.status(400).json({
+          success: false,
+          message: `Le sujet ${acceptedPfa} est déjà accepté par un autre étudiant ou binôme.`,
+        });
+      }
+
+      const acceptedStudents = [studentId];
+      if (binomeId) {
+        acceptedStudents.push(binomeId);
+      }
+
       await pfaModel.updateOne(
         { code_pfa: acceptedPfa },
-        { $set: { etatAffectation: "affected" } }
+        {
+          $set: {
+            "choices.$[elem].acceptedPfa.etudiantsAcceptedIds":
+              acceptedStudents,
+          },
+        },
+        {
+          arrayFilters: [{ "elem.etudiantsIds": studentId }],
+        }
       );
     }
 
-    // Réponse finale après le traitement de tous les choix
     return res.status(200).json({
       success: true,
       message: "Vos choix ont été enregistrés avec succès.",
@@ -1201,8 +1232,33 @@ export const updateAcceptedPfa = async (req, res) => {
       });
     }
 
+    if (acceptedPfa) {
+      const pfa = await pfaModel.findOne({ code_pfa: acceptedPfa });
+      if (
+        pfa.choices.some((c) => c.acceptedPfa?.etudiantsAcceptedIds?.length > 0)
+      ) {
+        return res.status(400).json({
+          success: false,
+          message: `Le sujet ${acceptedPfa} est déjà accepté par un autre étudiant ou binôme.`,
+        });
+      }
+    }
+    // Vérifier si l'étudiant a déjà accepté un autre sujet
+    const existingAcceptedPfa = await pfaModel.findOne({
+      "choices.acceptedPfa.etudiantsAcceptedIds": studentId, // Vérifie si l'étudiant a une acceptation
+    });
+
+    if (existingAcceptedPfa) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Vous avez déjà une acceptation pour un autre sujet. Vous ne pouvez pas en accepter un nouveau.",
+      });
+    }
+
+    // Récupérer tous les choix de l'étudiant
     const pfas = await pfaModel.find({
-      "choices.etudiantId": studentId,
+      "choices.etudiantsIds": studentId, // Récupère tous les choix pour cet étudiant
     });
 
     if (!pfas.length) {
@@ -1212,31 +1268,34 @@ export const updateAcceptedPfa = async (req, res) => {
       });
     }
 
-    // Vérifier si le sujet accepté fait partie des choix valides de l'étudiant
-    const isValidChoice = pfas.some((pfa) =>
+    // Vérifier si le sujet accepté fait partie des choix de l'étudiant
+    const validPfa = pfas.find((pfa) =>
       pfa.choices.some(
         (choice) =>
-          choice.etudiantId.toString() === studentId &&
-          choice.acceptedPfa === undefined &&
-          pfa.code_pfa === acceptedPfa
+          choice.etudiantsIds.includes(studentId) &&
+          pfa.code_pfa === acceptedPfa &&
+          !choice.acceptedPfa?.etudiantsAcceptedIds?.includes(studentId) // Vérifie que ce choix n'est pas déjà accepté par l'étudiant
       )
     );
 
-    if (!isValidChoice) {
+    if (!validPfa) {
       return res.status(400).json({
         success: false,
-        message: "Le sujet accepté doit être parmi vos choix.",
+        message:
+          "Le sujet accepté doit être parmi vos choix et ne doit pas déjà être accepté.",
       });
     }
 
-    // Mettre à jour le sujet accepté et définir l'état comme "affecté"
+    // Mettre à jour le sujet accepté pour l'étudiant
     const updateResult = await pfaModel.updateOne(
-      { code_pfa: acceptedPfa, "choices.etudiantId": studentId },
+      { code_pfa: acceptedPfa }, // Filtrer par code PFA
       {
         $set: {
-          "choices.$.acceptedPfa": acceptedPfa, // Ajoute le sujet accepté au choix
-          etatAffectation: "affected",
+          "choices.$[elem].acceptedPfa.etudiantsAcceptedIds": [studentId], // Met à jour les étudiants acceptés
         },
+      },
+      {
+        arrayFilters: [{ "elem.etudiantsIds": studentId }], // Filtrer par l'étudiant qui a fait ce choix
       }
     );
 
