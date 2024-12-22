@@ -17,6 +17,7 @@ import {
   getPfasByTeacherForStudents,
   choosePfaSubjects,
   updateAcceptedPfa,
+  ajouterSoutenance,
 } from "../controllers/pfaController.js";
 
 import {
@@ -45,5 +46,6 @@ router.get("/:id/mine", isEnseignant, getPfaByIdForTeacher);
 router.patch("/:id/mine", isEnseignant, modifyPfaSubject);
 router.delete("/:id", isEnseignant, deletePfa);
 router.get("/", isEtudiant, getPfasByTeacherForStudents);
+router.patch("/soutenances/", isAdmin, ajouterSoutenance);
 
 export default router;

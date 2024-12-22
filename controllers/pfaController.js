@@ -3,6 +3,7 @@ import userModel from "../models/userModel.js";
 import moment from "moment";
 import periodeModel from "../models/periodeModel.js";
 import nodemailer from "nodemailer";
+import soutenancePfaModel from "../models/soutenancePfaModel.js";
 
 const FROM_EMAIL = process.env.MAILER_EMAIL_ID;
 const AUTH_PASSWORD = process.env.MAILER_PASSWORD;
@@ -152,23 +153,9 @@ export const ajouterSujetPfa = async (req, res) => {
       description,
       technologies,
       estBinome,
-      nomEtudiant1,
-      prenomEtudiant1,
-      nomEtudiant2,
-      prenomEtudiant2,
+      idEtudiant1,
+      idEtudiant2,
     } = req.body;
-
-    // Vérification des données obligatoires
-    if (!titreSujet || !description || !technologies) {
-      return res.status(400).json({ message: "Champs requis manquants." });
-    }
-
-    // Vérification du rôle de l'utilisateur connecté
-    if (req.auth.role !== "enseignant") {
-      return res.status(403).json({
-        message: "Accès interdit : seul un enseignant peut déposer un sujet.",
-      });
-    }
 
     // Vérification de la période
     const periode = await periodeModel.findOne({ type: "PFA Project" });
@@ -189,37 +176,32 @@ export const ajouterSujetPfa = async (req, res) => {
 
     // Si estBinome est vrai, essayer de trouver deux étudiants si les informations sont données
     if (estBinome) {
-      if (nomEtudiant1 && prenomEtudiant1 && nomEtudiant2 && prenomEtudiant2) {
-        const etudiant1 = await userModel.findOne({
-          nom: nomEtudiant1,
-          prenom: prenomEtudiant1,
-          role: "etudiant",
+      const etudiant1 = await userModel.findOne({
+        _id: idEtudiant1,
+        role: "etudiant",
+      });
+      const etudiant2 = await userModel.findOne({
+        _id: idEtudiant2,
+        role: "etudiant",
+      });
+
+      if (!etudiant1 || !etudiant2) {
+        return res.status(404).json({
+          message: "Un ou les deux étudiants sont introuvables ou non valides.",
         });
-
-        const etudiant2 = await userModel.findOne({
-          nom: nomEtudiant2,
-          prenom: prenomEtudiant2,
-          role: "etudiant",
-        });
-
-        if (!etudiant1 || !etudiant2) {
-          return res.status(404).json({
-            message:
-              "Un ou les deux étudiants sont introuvables ou non valides.",
-          });
-        }
-
-        etudiants = [etudiant1._id, etudiant2._id];
-      } else {
-        // Si les informations des étudiants ne sont pas données, ne pas remplir etudiants
-        etudiants = []; // Vous pouvez aussi ne rien ajouter si vous ne voulez pas créer de relation.
       }
+      // Empêcher l'utilisation du même étudiant deux fois
+      if (idEtudiant1 === idEtudiant2) {
+        return res.status(400).json({
+          message: "Les deux identifiants d'étudiants doivent être différents.",
+        });
+      }
+      etudiants = [etudiant1._id, etudiant2._id];
     } else {
       // Si estBinome est faux, rechercher un seul étudiant si les informations sont données
-      if (nomEtudiant1 && prenomEtudiant1) {
+      if (idEtudiant1) {
         const etudiant = await userModel.findOne({
-          nom: nomEtudiant1,
-          prenom: prenomEtudiant1,
+          _id: idEtudiant1,
           role: "etudiant",
         });
 
@@ -231,9 +213,17 @@ export const ajouterSujetPfa = async (req, res) => {
 
         etudiants = [etudiant._id];
       }
+
+      // Si estBinome est faux et deux identifiants d'étudiants sont fournis
+      if (idEtudiant1 && idEtudiant2) {
+        return res.status(400).json({
+          message:
+            "Seul un étudiant peut être associé lorsque estBinome est faux.",
+        });
+      }
     }
 
-    // Générer un code PFA au format PFA2024-01
+    // Génération du code PFA
     const generateCodePfa = async () => {
       const currentYear = new Date().getFullYear();
       const lastPfa = await pfaModel.findOne().sort({ _id: -1 });
@@ -249,7 +239,6 @@ export const ajouterSujetPfa = async (req, res) => {
     };
 
     const codePfa = await generateCodePfa();
-
     // Création d'un sujet PFA
     const nouveauPfa = new pfaModel({
       code_pfa: codePfa,
@@ -282,7 +271,7 @@ export const ajouterSujetPfa = async (req, res) => {
     console.error("Erreur détectée :", error.message);
     return res
       .status(500)
-      .json({ message: ` Erreur serveur: ${error.message}` });
+      .json({ message: `Erreur serveur: ${error.message}` });
   }
 };
 
@@ -374,10 +363,8 @@ export const modifyPfaSubject = async (req, res) => {
       description,
       technologies,
       estBinome,
-      nomEtudiant1,
-      prenomEtudiant1,
-      nomEtudiant2,
-      prenomEtudiant2,
+      idEtudiant1,
+      idEtudiant2,
     } = req.body;
 
     // Vérification du rôle de l'utilisateur (doit être enseignant)
@@ -430,37 +417,32 @@ export const modifyPfaSubject = async (req, res) => {
 
     // Si estBinome est vrai, essayer de trouver deux étudiants si les informations sont données
     if (estBinome) {
-      if (nomEtudiant1 && prenomEtudiant1 && nomEtudiant2 && prenomEtudiant2) {
-        const etudiant1 = await userModel.findOne({
-          nom: nomEtudiant1,
-          prenom: prenomEtudiant1,
-          role: "etudiant",
+      const etudiant1 = await userModel.findOne({
+        _id: idEtudiant1,
+        role: "etudiant",
+      });
+      const etudiant2 = await userModel.findOne({
+        _id: idEtudiant2,
+        role: "etudiant",
+      });
+
+      if (!etudiant1 || !etudiant2) {
+        return res.status(404).json({
+          message: "Un ou les deux étudiants sont introuvables ou non valides.",
         });
-
-        const etudiant2 = await userModel.findOne({
-          nom: nomEtudiant2,
-          prenom: prenomEtudiant2,
-          role: "etudiant",
-        });
-
-        if (!etudiant1 || !etudiant2) {
-          return res.status(404).json({
-            message:
-              "Un ou les deux étudiants sont introuvables ou non valides.",
-          });
-        }
-
-        etudiants = [etudiant1._id, etudiant2._id];
-      } else {
-        // Si les informations des étudiants ne sont pas données, ne pas remplir etudiants
-        etudiants = []; // Vous pouvez aussi ne rien ajouter si vous ne voulez pas créer de relation.
       }
+      // Empêcher l'utilisation du même étudiant deux fois
+      if (idEtudiant1 === idEtudiant2) {
+        return res.status(400).json({
+          message: "Les deux identifiants d'étudiants doivent être différents.",
+        });
+      }
+      etudiants = [etudiant1._id, etudiant2._id];
     } else {
       // Si estBinome est faux, rechercher un seul étudiant si les informations sont données
-      if (nomEtudiant1 && prenomEtudiant1) {
+      if (idEtudiant1) {
         const etudiant = await userModel.findOne({
-          nom: nomEtudiant1,
-          prenom: prenomEtudiant1,
+          _id: idEtudiant1,
           role: "etudiant",
         });
 
@@ -472,8 +454,15 @@ export const modifyPfaSubject = async (req, res) => {
 
         etudiants = [etudiant._id];
       }
-    }
 
+      // Si estBinome est faux et deux identifiants d'étudiants sont fournis
+      if (idEtudiant1 && idEtudiant2) {
+        return res.status(400).json({
+          message:
+            "Seul un étudiant peut être associé lorsque estBinome est faux.",
+        });
+      }
+    }
     // Mettre à jour le tableau des étudiants dans le sujet
     sujet.etudiants = etudiants;
 
@@ -1257,6 +1246,164 @@ export const updateAcceptedPfa = async (req, res) => {
       success: false,
       message:
         "Une erreur est survenue lors de la mise à jour du sujet accepté.",
+    });
+  }
+};
+
+export const ajouterSoutenance = async (req, res) => {
+  // yeess
+  try {
+    const {
+      code_pfa,
+      etudiants,
+      date_soutenance,
+      heure_soutenance,
+      salle,
+      rapporteur,
+      enseignant, // Enseignant (encadrant) qui est l'enseignant
+    } = req.body;
+
+    // Vérification que le sujet PFA existe
+    const sujet = await pfaModel
+      .findOne({ code_pfa })
+      .populate("enseignant etudiants", "nom prenom _id");
+
+    if (!sujet) {
+      return res.status(404).json({
+        message: `Sujet PFA avec le code ${code_pfa} introuvable.`,
+      });
+    }
+
+    // Vérification que l'enseignant qui crée la soutenance est bien l'encadrant du sujet PFA
+    if (sujet.enseignant._id.toString() !== enseignant.toString()) {
+      return res.status(400).json({
+        message:
+          "L'enseignant qui crée la soutenance doit être l'encadrant du sujet PFA.",
+      });
+    }
+
+    // Vérification que l'enseignant et le rapporteur ne sont pas la même personne
+    if (enseignant && enseignant.toString() === rapporteur.toString()) {
+      return res.status(400).json({
+        message:
+          "L'enseignant et le rapporteur ne peuvent pas être la même personne.",
+      });
+    }
+
+    // Vérification que l'identifiant de chaque étudiant ne se trouve pas déjà dans une soutenance d'un autre sujet PFA
+    for (let etudiantId of etudiants) {
+      const soutenanceExistante = await soutenancePfaModel.findOne({
+        etudiants: etudiantId, // Vérifier dans le tableau 'etudiants' de la soutenance
+      });
+
+      if (soutenanceExistante) {
+        return res.status(400).json({
+          message: `L'étudiant avec l'ID ${etudiantId} est déjà associé à une soutenance pour un autre sujet PFA.`,
+        });
+      }
+    }
+
+    // Vérification de conflit d'horaire (dans la même salle)
+    const heureParts = heure_soutenance.split(":");
+    const premiereHeure = 8 * 60; // 08:00 en minutes
+    const heureDebut = parseInt(heureParts[0]) * 60 + parseInt(heureParts[1]); // Convertir l'heure en minutes
+    const finHeure = heureDebut + 30; // Durée de soutenance de 30 minutes
+
+    const heuresFin = Math.floor(finHeure / 60); // Calcul de l'heure de fin
+    const minutesFin = finHeure % 60; // Calcul des minutes de fin
+    const finHeureFormatted = `${String(heuresFin).padStart(2, "0")}:${String(
+      minutesFin
+    ).padStart(2, "0")}`;
+
+    const conflitHoraire = await soutenancePfaModel.findOne({
+      date_soutenance,
+      salle,
+      $or: [
+        {
+          heure_soutenance: { $gte: heure_soutenance, $lt: finHeureFormatted },
+        },
+        { finHeure: { $gt: heure_soutenance, $lte: finHeureFormatted } },
+      ],
+    });
+
+    if (conflitHoraire) {
+      return res.status(400).json({
+        message:
+          "Conflit d'horaires avec une autre soutenance dans la même salle.",
+      });
+    }
+
+    // Vérification du nombre de soutenances déjà programmées pour cette date (peu importe la salle et l'heure)
+    const soutenancesMemeJour = await soutenancePfaModel.find({
+      date_soutenance: {
+        $gte: new Date(date_soutenance).setHours(0, 0, 0, 0), // Minuit du jour
+        $lt: new Date(date_soutenance).setHours(23, 59, 59, 999), // Fin du jour
+      },
+    });
+
+    if (soutenancesMemeJour.length >= 6) {
+      return res.status(400).json({
+        message: "Nombre maximal de soutenances atteint pour ce jour.",
+      });
+    }
+
+    // Vérification que ce PFA n'a pas déjà une soutenance
+    const soutenanceExistante = await soutenancePfaModel.findOne({
+      pfa: sujet._id, // Vérification de l'existence d'une soutenance pour ce PFA
+    });
+
+    if (soutenanceExistante) {
+      // Si une soutenance existe déjà pour ce PFA, on met à jour la soutenance existante
+      soutenanceExistante.date_soutenance = date_soutenance;
+      soutenanceExistante.heure_soutenance = heure_soutenance;
+      soutenanceExistante.salle = salle;
+      soutenanceExistante.rapporteur = rapporteur;
+      soutenanceExistante.etudiants = etudiants; // Mise à jour des étudiants
+      await soutenanceExistante.save();
+
+      // Peupler l'enseignant, les étudiants et le rapporteur dans la soutenance mise à jour
+      await soutenanceExistante.populate(
+        "etudiants rapporteur enseignant", // Peupler avec l'enseignant
+        "nom prenom _id"
+      );
+
+      return res.status(200).json({
+        message: "Soutenance mise à jour avec succès.",
+        soutenance: soutenanceExistante,
+      });
+    } else {
+      // Si aucune soutenance n'existe pour ce PFA, on crée une nouvelle soutenance
+      const soutenance = new soutenancePfaModel({
+        pfa: sujet._id,
+        etudiants,
+        date_soutenance,
+        heure_soutenance,
+        finHeure: finHeureFormatted, // Utilisation de la nouvelle heure de fin correctement formatée
+        salle,
+        rapporteur,
+        enseignant, // Utilisation de l'enseignant comme encadrant
+      });
+
+      await soutenance.save();
+
+      // Peupler l'enseignant, les étudiants et le rapporteur dans la soutenance créée
+      await soutenance.populate(
+        "etudiants rapporteur enseignant",
+        "nom prenom _id"
+      );
+
+      return res.status(200).json({
+        message: "Soutenance créée avec succès.",
+        soutenance,
+      });
+    }
+  } catch (error) {
+    console.error(
+      "Erreur lors de la création ou de la modification de la soutenance :",
+      error.message
+    );
+    return res.status(500).json({
+      message: `Erreur serveur: ${error.message}`,
     });
   }
 };

@@ -11,11 +11,11 @@ const pfaSchema = new mongoose.Schema(
       type: String,
     },
 
-    technologies: { type: [String], required: false },
+    technologies: { type: [String], required: true },
 
-    description: { type: String, required: false },
+    description: { type: String, required: true },
 
-    estBinome: { type: Boolean, required: false },
+    estBinome: { type: Boolean, required: true },
 
     choices: [
       {
@@ -74,6 +74,7 @@ const pfaSchema = new mongoose.Schema(
       ref: "User", // Référence au modèle `User`
       required: true,
     },
+
     etudiants: [
       {
         type: mongoose.Schema.Types.ObjectId,
