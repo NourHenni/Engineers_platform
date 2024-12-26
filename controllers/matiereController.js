@@ -1,15 +1,31 @@
 import Matiere from "../models/matiereModel.js";
 
 import nodemailer from "nodemailer";
-
+import Competence from "../models/competenceModel.js";
 import User from "../models/userModel.js";
 
 // Créer une nouvelle matière
 export const createMatiere = async (req, res) => {
   try {
     const matiere = new Matiere(req.body);
-    console.log("Objet Matiere créé :", matiere);
+
     await matiere.save();
+    // Mettre à jour les compétences associées
+    if (req.body.competences && req.body.competences.length > 0) {
+      for (const competenceId of req.body.competences) {
+        const competence = await Competence.findById(competenceId);
+        if (!competence) {
+          console.warn(`Compétence avec l'ID ${competenceId} introuvable.`);
+          continue;
+        }
+
+        // Ajouter l'ID de la matière à la liste des matières de la compétence
+        if (!competence.matieres.includes(matiere._id)) {
+          competence.matieres.push(matiere._id);
+          await competence.save(); // Sauvegarder la mise à jour
+        }
+      }
+    }
     res.status(201).json(matiere);
   } catch (error) {
     res.status(400).json({ error: error.message });
@@ -74,36 +90,6 @@ export const publishOrHideMatieres = async (req, res) => {
         publishStatus ? "publiées" : "masquées"
       }.`,
     });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-};
-
-export const getMatieresByEnseignant = async (req, res) => {
-  try {
-    // Récupérer l'ID de l'utilisateur connecté depuis le middleware d'authentification
-    const enseignantId = req.params.id;
-
-    // Vérifier si l'utilisateur est bien un enseignant
-    const user = await User.findById(enseignantId);
-    if (!user || user.role !== "enseignant") {
-      return res
-        .status(403)
-        .json({ message: "Accès interdit. Vous n'êtes pas un enseignant." });
-    }
-
-    // Récupérer les matières associées à cet enseignant
-    const matieres = await Matiere.find({ enseignant: enseignantId });
-
-    // Vérifier si des matières existent
-    if (!matieres || matieres.length === 0) {
-      return res
-        .status(404)
-        .json({ message: "Aucune matière trouvée pour cet enseignant." });
-    }
-
-    // Retourner les matières
-    res.status(200).json(matieres);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -237,5 +223,3 @@ Cordialement,`,
     await transporter.sendMail(etudiantMailOptions);
   }
 };
-
-export default { createMatiere, getMatieres, getMatieresByEnseignant };

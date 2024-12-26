@@ -17,7 +17,7 @@ const userSchema = new mongoose.Schema(
     },
     genre: {
       type: String,
-      enum: ["homme", "femme"],
+      enum: ["M", "F"],
       required: true,
     },
     dateDeNaissance: {
@@ -66,60 +66,39 @@ const userSchema = new mongoose.Schema(
       enum: ["etudiant", "enseignant", "admin"],
       required: true,
     },
+
+    isFirstSendPfa: { type: Boolean, default: false },
+    isFirstSendEte: { type: Boolean, default: false },
+    niveau: { type: String, enum: ["1ING", "2ING", "3ING"] },
+
+    isGraduated: {
+      type: String,
+      enum: ["graduated", "not_graduated"],
+    },
+
     archivee: {
       type: Boolean, // Boolean type to indicate true or false
       default: false, // Default value is set to false
     },
 
+    matieres: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "matieres",
+        required: false,
+      },
+    ],
+    semestre: {
+      type: String,
+      enum: ["S1", "S2", "S3", "S4", "S5"],
+    },
     situation: {
       type: String,
-      enum: ["Nouveau", "Redoublant", "Diplomé"],
+      enum: ["nouveau", "redoublant", "diplome"],
     },
-    baccalaureat: {
-      type: String,
-      enum: [
-        "bac math",
-        "bac technique",
-        "bac sciences",
-        "bac economie",
-        "bac informatique",
-      ],
-    },
-    annee_bac: {
-      type: Number,
-    },
-    moyenne_bac: {
-      type: Number,
-    },
-    mention: {
-      type: String,
-    },
-    est_prepa: {
-      type: Boolean,
-    },
-    universite: {
-      type: String,
-    },
-    etablissement: {
-      type: String,
-    },
-    type_licence: {
-      type: String,
-    },
-    specialite: {
-      type: String,
-    },
-    annee_licence: {
-      type: Number,
-    },
-    annee_sortie_isamm: {
-      type: Number,
-    },
-
     grade: {
       type: String,
     },
-    matieres: [{ type: mongoose.Schema.Types.ObjectId, ref: "matieres" }],
   },
   {
     timestamps: true,
