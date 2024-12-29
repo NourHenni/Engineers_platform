@@ -3,6 +3,8 @@ import userModel from "../models/userModel.js";
 import moment from "moment";
 import periodeModel from "../models/periodeModel.js";
 import nodemailer from "nodemailer";
+import soutenancePfaModel from "../models/soutenancePfaModel.js";
+import mongoose from "mongoose";
 
 const FROM_EMAIL = process.env.MAILER_EMAIL_ID;
 const AUTH_PASSWORD = process.env.MAILER_PASSWORD;
@@ -416,14 +418,6 @@ export const modifyPfaSubject = async (req, res) => {
 
     // Si estBinome est vrai, essayer de trouver deux étudiants si les informations sont données
     if (estBinome) {
-      // Vérifier que les deux identifiants d'étudiants sont fournis
-      if (!idEtudiant1 || !idEtudiant2) {
-        return res.status(400).json({
-          message:
-            "Lorsque estBinome est vrai, deux identifiants d'étudiants doivent être fournis.",
-        });
-      }
-
       const etudiant1 = await userModel.findOne({
         _id: idEtudiant1,
         role: "etudiant",
@@ -1316,6 +1310,480 @@ export const updateAcceptedPfa = async (req, res) => {
       success: false,
       message:
         "Une erreur est survenue lors de la mise à jour du sujet accepté.",
+    });
+  }
+};
+
+export const ajouterSoutenance = async (req, res) => {
+  try {
+    const {
+      code_pfa,
+      etudiants,
+      date_soutenance,
+      heure_soutenance,
+      salle,
+      rapporteur,
+      enseignant, // Enseignant (encadrant) qui est l'enseignant
+    } = req.body;
+
+    // Vérification que le sujet PFA existe
+    const sujet = await pfaModel
+      .findOne({ code_pfa })
+      .populate("enseignant etudiants", "nom prenom _id")
+      .select("titreSujet");
+
+    if (!sujet) {
+      return res.status(404).json({
+        message: `Sujet PFA avec le code ${code_pfa} introuvable.`,
+      });
+    }
+
+    // Validation des identifiants enseignant et rapporteur
+    if (!mongoose.Types.ObjectId.isValid(enseignant)) {
+      return res
+        .status(400)
+        .json({ message: "Identifiant enseignant invalide." });
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(rapporteur)) {
+      return res
+        .status(400)
+        .json({ message: "Identifiant rapporteur invalide." });
+    }
+
+    // Vérification que l'enseignant est bien l'encadrant du sujet PFA
+    if (
+      enseignant &&
+      sujet.enseignant._id.toString() !== enseignant.toString()
+    ) {
+      return res.status(400).json({
+        message:
+          "L'enseignant doit être l'encadrant du sujet PFA pour gérer la soutenance.",
+      });
+    }
+
+    // Vérification que l'enseignant et le rapporteur ne sont pas la même personne
+    if (enseignant && enseignant.toString() === rapporteur.toString()) {
+      return res.status(400).json({
+        message:
+          "L'enseignant et le rapporteur ne peuvent pas être la même personne.",
+      });
+    }
+
+    // Vérification si un étudiant est déjà associé à une soutenance existante
+    const soutenancesExistantes = await soutenancePfaModel.find({
+      etudiants: { $in: etudiants },
+    });
+
+    if (soutenancesExistantes.length > 0) {
+      return res.status(400).json({
+        message:
+          "Un ou plusieurs étudiants sont déjà associés à une soutenance.",
+      });
+    }
+
+    // Vérification du nombre de soutenances encadrées par l'enseignant
+    const soutenancesEncadrant = await soutenancePfaModel.find({
+      enseignant,
+    });
+
+    // Vérification du nombre de soutenances où l'enseignant est rapporteur
+    const soutenancesRapporteur = await soutenancePfaModel.find({
+      rapporteur: enseignant,
+    });
+
+    // Si l'enseignant encadre plus de soutenances que ce qu'il est rapporteur, on empêche l'ajout de la soutenance
+    if (soutenancesEncadrant.length > soutenancesRapporteur.length) {
+      return res.status(400).json({
+        message:
+          "L'enseignant doit être rapporteur dans un nombre égal de soutenances à celles qu'il encadre.",
+      });
+    }
+
+    // Si le sujet PFA n'a pas d'étudiants associés, les ajouter
+    if (sujet.etudiants.length === 0) {
+      // Ajouter les étudiants lors de la création de la soutenance
+      sujet.etudiants = etudiants;
+      await sujet.save();
+    } else {
+      // Vérification des étudiants associés au sujet PFA
+      const etudiantsSujet = sujet.etudiants.map((e) => e._id.toString());
+      const etudiantsInvalide = etudiants.some(
+        (id) => !etudiantsSujet.includes(id.toString())
+      );
+
+      if (etudiantsInvalide || etudiants.length !== etudiantsSujet.length) {
+        return res.status(400).json({
+          message:
+            "Les étudiants sélectionnés pour la soutenance doivent correspondre aux étudiants associés au sujet PFA.",
+        });
+      }
+    }
+
+    // Vérification du nombre de soutenances déjà programmées pour cette date
+    const soutenancesMemeJour = await soutenancePfaModel.find({
+      date_soutenance: {
+        $gte: new Date(date_soutenance).setHours(0, 0, 0, 0),
+        $lt: new Date(date_soutenance).setHours(23, 59, 59, 999),
+      },
+    });
+
+    if (soutenancesMemeJour.length >= 2) {
+      return res.status(400).json({
+        message: "Nombre maximal de soutenances atteint pour ce jour.",
+      });
+    }
+
+    // Vérification de l'heure au plus tôt (8:00) et au plus tard (16:00)
+    const heureParts = heure_soutenance.split(":");
+    const heureDebut = parseInt(heureParts[0]) * 60 + parseInt(heureParts[1]); // Convertir l'heure en minutes
+    const finHeure = heureDebut + 30; // Durée de soutenance de 30 minutes
+
+    if (heureDebut < 480 || finHeure > 960) {
+      return res.status(400).json({
+        message: "La soutenance doit être programmée entre 8h00 et 16h00.",
+      });
+    }
+
+    // Correction de l'heure de fin
+    const finHeureFormatted = `${String(Math.floor(finHeure / 60)).padStart(
+      2,
+      "0"
+    )}:${String(finHeure % 60).padStart(2, "0")}`;
+
+    const conflitHoraire = await soutenancePfaModel.findOne({
+      date_soutenance,
+      salle,
+      $or: [
+        {
+          heure_soutenance: { $gte: heure_soutenance, $lt: finHeureFormatted },
+        },
+        { finHeure: { $gt: heure_soutenance, $lte: finHeureFormatted } },
+      ],
+    });
+
+    if (conflitHoraire) {
+      return res.status(400).json({
+        message:
+          "Conflit d'horaires avec une autre soutenance dans la même salle.",
+      });
+    }
+    // Vérification des conflits pour l'enseignant et le rapporteur
+    const conflitEnseignantRapporteur = await soutenancePfaModel.findOne({
+      date_soutenance,
+      $or: [{ enseignant }, { rapporteur }],
+      salle: { $ne: salle }, // Vérification dans une autre salle
+      $or: [
+        {
+          heure_soutenance: { $gte: heure_soutenance, $lt: finHeureFormatted },
+        },
+        { finHeure: { $gt: heure_soutenance, $lte: finHeureFormatted } },
+      ],
+    });
+
+    if (conflitEnseignantRapporteur) {
+      return res.status(400).json({
+        message:
+          "L'enseignant ou le rapporteur est déjà engagé dans une autre soutenance à la même date et heure dans une autre salle.",
+      });
+    }
+    // Création de la soutenance
+    const soutenance = new soutenancePfaModel({
+      pfa: sujet._id,
+      etudiants,
+      date_soutenance,
+      heure_soutenance,
+      finHeure: finHeureFormatted,
+      salle,
+      rapporteur,
+      enseignant,
+    });
+
+    await soutenance.save();
+
+    const soutenancePopulee = await soutenance.populate(
+      "enseignant rapporteur etudiants",
+      "nom prenom _id"
+    );
+
+    return res.status(200).json({
+      message: "Soutenance créée avec succès.",
+      soutenance: soutenancePopulee,
+      titreSujet: sujet.titreSujet, // Inclure le titre du sujet
+    });
+  } catch (error) {
+    console.error(
+      "Erreur lors de la création de la soutenance :",
+      error.message
+    );
+    return res.status(500).json({
+      message: `Erreur serveur: ${error.message}`,
+    });
+  }
+};
+
+export const modifierSoutenance = async (req, res) => {
+  try {
+    const { id } = req.params; // Récupération de l'ID de la soutenance depuis les paramètres
+    const { date_soutenance, heure_soutenance, salle, rapporteur } = req.body; // Champs à modifier
+
+    // Vérification de l'existence de la soutenance
+    const soutenance = await soutenancePfaModel.findById(id);
+    if (!soutenance) {
+      return res.status(404).json({ message: "Soutenance introuvable." });
+    }
+
+    // Validation de l'ID du rapporteur
+    if (!mongoose.Types.ObjectId.isValid(rapporteur)) {
+      return res
+        .status(400)
+        .json({ message: "Identifiant du rapporteur invalide." });
+    }
+
+    // Validation de l'heure et de la plage horaire
+    const heureParts = heure_soutenance.split(":");
+    const heureDebut = parseInt(heureParts[0]) * 60 + parseInt(heureParts[1]); // Convertir l'heure en minutes
+    const finHeure = heureDebut + 30; // Durée de soutenance de 30 minutes
+
+    if (heureDebut < 480 || finHeure > 960) {
+      return res.status(400).json({
+        message: "La soutenance doit être programmée entre 08:00 et 16:00.",
+      });
+    }
+
+    const finHeureFormatted = `${String(Math.floor(finHeure / 60)).padStart(
+      2,
+      "0"
+    )}:${String(finHeure % 60).padStart(2, "0")}`;
+
+    // Vérification des conflits d'horaires dans la même salle
+    const conflitHoraire = await soutenancePfaModel.findOne({
+      date_soutenance,
+      salle,
+      _id: { $ne: id }, // Exclure la soutenance actuelle
+      $or: [
+        {
+          heure_soutenance: { $gte: heure_soutenance, $lt: finHeureFormatted },
+        },
+        { finHeure: { $gt: heure_soutenance, $lte: finHeureFormatted } },
+      ],
+    });
+
+    if (conflitHoraire) {
+      return res.status(400).json({
+        message:
+          "Conflit d'horaires avec une autre soutenance dans la même salle.",
+      });
+    }
+    // Vérification des conflits pour l'encadrant (enseignant) et le rapporteur
+    const conflitEnseignantRapporteur = await soutenancePfaModel.findOne({
+      date_soutenance,
+      $or: [
+        { enseignant: soutenance.enseignant }, // Vérification pour l'encadrant existant
+        { rapporteur }, // Vérification pour le rapporteur modifié
+      ],
+      _id: { $ne: id }, // Exclure la soutenance actuelle
+      salle: { $ne: salle }, // Vérification dans une autre salle
+      $or: [
+        {
+          heure_soutenance: { $gte: heure_soutenance, $lt: finHeureFormatted },
+        },
+        { finHeure: { $gt: heure_soutenance, $lte: finHeureFormatted } },
+      ],
+    });
+
+    if (conflitEnseignantRapporteur) {
+      return res.status(400).json({
+        message:
+          "L'encadrant ou le rapporteur est déjà engagé dans une autre soutenance à la même date et heure dans une autre salle.",
+      });
+    }
+    // Mise à jour des champs spécifiés
+    soutenance.date_soutenance = date_soutenance;
+    soutenance.heure_soutenance = heure_soutenance;
+    soutenance.salle = salle;
+    soutenance.rapporteur = rapporteur;
+    soutenance.finHeure = finHeureFormatted;
+
+    await soutenance.save();
+
+    const updatedSoutenance = await soutenance.populate(
+      "rapporteur",
+      "nom prenom"
+    );
+
+    return res.status(200).json({
+      message: "Soutenance mise à jour avec succès.",
+      soutenance: updatedSoutenance,
+    });
+  } catch (error) {
+    console.error("Erreur lors de la modification de la soutenance :", error);
+    return res.status(500).json({ message: "Erreur serveur." });
+  }
+};
+
+// Contrôleur pour publier ou masquer les soutenances
+export const publierOuMasquerSoutenances = async (req, res) => {
+  try {
+    // Récupération du paramètre 'response' (publish ou hide)
+    const { response } = req.params;
+
+    // Validation de la valeur du paramètre
+    if (!["publish", "hide"].includes(response)) {
+      return res.status(400).json({
+        message:
+          "Paramètre invalide. Utilisez 'publish' pour publier ou 'hide' pour masquer les soutenances.",
+      });
+    }
+
+    // Détermination de l'état en fonction du paramètre
+    const isPublished = response === "publish";
+
+    // Mise à jour de toutes les soutenances
+    const result = await soutenancePfaModel.updateMany(
+      {}, // Aucune condition : toutes les soutenances
+      { isPublished }, // Mise à jour de l'état de publication
+      { new: true }
+    );
+
+    // Vérification si des soutenances existent
+    if (result.modifiedCount === 0) {
+      return res.status(404).json({
+        message: "Aucune soutenance trouvée à publier ou masquer.",
+      });
+    }
+
+    // Retourner une réponse en fonction de l'action
+    return res.status(200).json({
+      message: isPublished
+        ? "Toutes les soutenances ont été publiées avec succès."
+        : "Toutes les soutenances ont été masquées avec succès.",
+      result,
+    });
+  } catch (error) {
+    console.error(
+      "Erreur lors de la publication/masquage des soutenances :",
+      error.message
+    );
+    return res.status(500).json({
+      message: `Erreur serveur : ${error.message}`,
+    });
+  }
+};
+
+export const sendPlanningSoutenances = async (req, res) => {
+  try {
+    const { typeEnvoi } = req.body; // "first" ou "modified"
+    if (!["first", "modified"].includes(typeEnvoi)) {
+      return res.status(400).json({
+        message: "Type d'envoi invalide. Utilisez 'first' ou 'modified'.",
+      });
+    }
+
+    // Récupérer toutes les soutenances
+    const soutenances = await soutenancePfaModel
+      .find({})
+      .populate(
+        "etudiants enseignant rapporteur",
+        "adresseEmail nom prenom _id"
+      );
+
+    if (!soutenances.length) {
+      return res
+        .status(400)
+        .json({
+          message: "Aucune soutenance trouvée dans la base de données.",
+        });
+    }
+
+    // Construire la liste des destinataires
+    const emails = new Set(); // Utilisation d'un Set pour éviter les doublons
+
+    soutenances.forEach((soutenance) => {
+      if (soutenance.etudiants) {
+        soutenance.etudiants.forEach((etudiant) =>
+          emails.add(etudiant.adresseEmail)
+        );
+      }
+      if (soutenance.enseignant) {
+        emails.add(soutenance.enseignant.adresseEmail);
+      }
+      if (soutenance.rapporteur) {
+        emails.add(soutenance.rapporteur.adresseEmail);
+      }
+    });
+
+    if (!emails.size) {
+      return res
+        .status(200)
+        .json({ message: "Aucun email à envoyer pour les soutenances." });
+    }
+
+    // Configurer le transporteur SMTP
+    const smtpTransport = nodemailer.createTransport({
+      host: process.env.HOST, // Défini dans votre .env
+      port: process.env.PORT_SSL, // Port SSL
+      secure: true, // Utilisation de SSL
+      auth: {
+        user: process.env.MAILER_EMAIL_ID, // Email pour l'authentification
+        pass: process.env.MAILER_PASSWORD, // Mot de passe d'application
+      },
+    });
+
+    // Vérifier la configuration SMTP avant l'envoi
+    await smtpTransport.verify();
+
+    // Contenu des emails selon le type d'envoi
+    const emailSubject =
+      typeEnvoi === "first"
+        ? "Planning des soutenances de PFAs"
+        : "Mise à jour du planning des soutenances de PFAs";
+
+    const emailHtml =
+      typeEnvoi === "first"
+        ? `
+      Bonjour,<br/><br/>
+      Nous avons le plaisir de vous informer que le planning des soutenances de PFAs a été publié. <br/>
+      Vous pouvez consulter les détails du planning en suivant le lien ci-dessous :<br/><br/>
+      <a href="${process.env.API_ENDPOINT}/planning-soutenances" target="_blank" style="color: #007bff; text-decoration: none; font-weight: bold;">
+        Accéder au planning des soutenances
+      </a><br/><br/>
+      Cordialement,<br/>
+      L’équipe de coordination des PFAs.
+    `
+        : `
+      Bonjour,<br/><br/>
+      Nous vous informons que le planning des soutenances de PFAs a été mis à jour. <br/>
+      Veuillez consulter les modifications en suivant le lien ci-dessous :<br/><br/>
+      <a href="${process.env.API_ENDPOINT}/planning-soutenances" target="_blank" style="color: #007bff; text-decoration: none; font-weight: bold;">
+        Accéder au planning mis à jour
+      </a><br/><br/>
+      Cordialement,<br/>
+      L’équipe de coordination des PFAs.
+    `;
+
+    // Envoi des emails
+    const mailOptions = {
+      from: process.env.MAILER_EMAIL_ID,
+      to: [...emails], // Conversion du Set en tableau
+      subject: emailSubject,
+      html: emailHtml,
+    };
+
+    await smtpTransport.sendMail(mailOptions);
+
+    return res.status(200).json({
+      success: true,
+      message: `Emails envoyés avec succès pour le planning des soutenances (${
+        typeEnvoi === "first" ? "première publication" : "mise à jour"
+      }).`,
+    });
+  } catch (error) {
+    console.error("Erreur :", error.message);
+    return res.status(500).json({
+      success: false,
+      message: "Une erreur s'est produite lors de l'envoi des emails.",
+      error: error.message,
     });
   }
 };

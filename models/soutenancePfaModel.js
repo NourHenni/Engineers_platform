@@ -28,13 +28,11 @@ const soutenanceSchema = new mongoose.Schema(
       ref: "User", // Référence au modèle `User`
       required: false,
     },
-
     rapporteur: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User", // Référence au modèle `User` pour le rapporteur
       required: false,
     },
-    // Ajoutez la propriété 'etudiants' pour que vous puissiez la peupler
     etudiants: [
       {
         type: mongoose.Schema.Types.ObjectId,
@@ -42,6 +40,26 @@ const soutenanceSchema = new mongoose.Schema(
         required: false,
       },
     ],
+    isPublished: {
+      type: Boolean, // État de publication
+      default: false, // Par défaut, une soutenance n'est pas publiée
+      required: true,
+    },
+    emailSent: {
+      // Indique si l'email a été envoyé
+      type: Boolean,
+      default: false,
+    },
+    emailSentAt: {
+      // Date de l'envoi de l'email
+      type: Date,
+      required: false,
+    },
+    isSecondSend: {
+      // Indique si c'est un deuxième envoi
+      type: Boolean,
+      default: false,
+    },
   },
   {
     timestamps: true, // Ajoute automatiquement createdAt et updatedAt
