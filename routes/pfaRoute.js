@@ -17,6 +17,12 @@ import {
   getPfasByTeacherForStudents,
   choosePfaSubjects,
   updateAcceptedPfa,
+  automatedAssignment,
+  manualAssignment,
+  publishAffectedPfas,
+  sendListePfaAffected,
+  fetchAssignedPfa,
+  fetchMyPfa,
 } from "../controllers/pfaController.js";
 
 import {
@@ -36,7 +42,16 @@ router.get("/getPublishedPfas", isEtudiant, fetchPublishedPfa);
 router.post("/list/send", isAdmin, sendListePfa);
 router.patch("/choiceSubject", isEtudiant, choosePfaSubjects);
 router.patch("/updateChoice", isEtudiant, updateAcceptedPfa);
-router.post("/open", isAdmin, addPeriod);
+router.patch("/assign", isAdmin, automatedAssignment);
+router.patch(
+  "/:pfaId/assign/student/:studentId/:secondStudentId?",
+  isAdmin,
+  manualAssignment
+);
+router.post("/publish/pfas/:response", isAdmin, publishAffectedPfas);
+router.post("/list/pfas/send", isAdmin, sendListePfaAffected);
+router.get("/getAssignedPfas", isEtudiant, fetchAssignedPfa);
+router.get("/students/mine", isEtudiant, fetchMyPfa);
 router.get("/open", isAdmin, getPeriodes);
 router.patch("/open", isAdmin, updateDelais);
 router.post("/post", isEnseignant, ajouterSujetPfa);
