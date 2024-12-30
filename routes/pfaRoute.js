@@ -21,6 +21,7 @@ import {
   modifierSoutenance,
   publierOuMasquerSoutenances,
   sendPlanningSoutenances,
+  fetchPlanningSoutenances,
 } from "../controllers/pfaController.js";
 
 import {
@@ -53,4 +54,5 @@ router.post("/soutenances/", isAdmin, ajouterSoutenance);
 router.patch("/:id/soutenances/", isAdmin, modifierSoutenance);
 router.post("/publish/:response", isAdmin, publierOuMasquerSoutenances);
 router.post("/list/send/soutenances", isAdmin, sendPlanningSoutenances);
+router.get("/pfa", isAdmin, fetchPlanningSoutenances);
 export default router;

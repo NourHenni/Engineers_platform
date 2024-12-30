@@ -91,13 +91,6 @@ export const updateDelais = async (req, res) => {
   try {
     const { DateDebutDepot, DateFinDepot } = req.body;
 
-    // Vérification des champs obligatoires
-    if (!DateFinDepot || !DateDebutDepot) {
-      return res.status(400).json({
-        error: "Le champ 'DateFinDepot' ou 'DateDebutDepot est requis.",
-      });
-    }
-
     // Recherche de la période spécifique (exemple : "PFA")
     const periode = await periodeModel.findOne({ type: "PFA Project" });
 
@@ -1381,7 +1374,6 @@ export const ajouterSoutenance = async (req, res) => {
           "Un ou plusieurs étudiants sont déjà associés à une soutenance.",
       });
     }
-
     // Vérification du nombre de soutenances encadrées par l'enseignant
     const soutenancesEncadrant = await soutenancePfaModel.find({
       enseignant,
@@ -1539,7 +1531,28 @@ export const modifierSoutenance = async (req, res) => {
         .status(400)
         .json({ message: "Identifiant du rapporteur invalide." });
     }
+    // Vérification si l'identifiant du rapporteur modifié est le même que l'enseignant
+    if (rapporteur === soutenance.enseignant.toString()) {
+      return res.status(400).json({
+        message:
+          "L'identifiant du rapporteur ne peut pas être le même que celui de l'enseignant.",
+      });
+    }
 
+    // Vérification des soutenances encadrées et rapportées par le rapporteur modifié
+    const soutenancesEncadrant = await soutenancePfaModel.find({
+      enseignant: rapporteur,
+    });
+    const soutenancesRapporteur = await soutenancePfaModel.find({
+      rapporteur,
+    });
+
+    if (soutenancesEncadrant.length > soutenancesRapporteur.length) {
+      return res.status(400).json({
+        message:
+          "Le rapporteur doit encadrer un nombre égal de soutenances à celles qu'il rapporte.",
+      });
+    }
     // Validation de l'heure et de la plage horaire
     const heureParts = heure_soutenance.split(":");
     const heureDebut = parseInt(heureParts[0]) * 60 + parseInt(heureParts[1]); // Convertir l'heure en minutes
@@ -1596,6 +1609,19 @@ export const modifierSoutenance = async (req, res) => {
       return res.status(400).json({
         message:
           "L'encadrant ou le rapporteur est déjà engagé dans une autre soutenance à la même date et heure dans une autre salle.",
+      });
+    }
+    const soutenancesMemeJour = await soutenancePfaModel.find({
+      date_soutenance: {
+        $gte: new Date(date_soutenance).setHours(0, 0, 0, 0),
+        $lt: new Date(date_soutenance).setHours(23, 59, 59, 999),
+      },
+      _id: { $ne: id },
+    });
+
+    if (soutenancesMemeJour.length >= 2) {
+      return res.status(400).json({
+        message: "Nombre maximal de soutenances atteint pour ce jour.",
       });
     }
     // Mise à jour des champs spécifiés
@@ -1682,18 +1708,16 @@ export const sendPlanningSoutenances = async (req, res) => {
 
     // Récupérer toutes les soutenances
     const soutenances = await soutenancePfaModel
-      .find({})
+      .find({}) // Rechercher toutes les soutenances
       .populate(
         "etudiants enseignant rapporteur",
         "adresseEmail nom prenom _id"
       );
 
     if (!soutenances.length) {
-      return res
-        .status(400)
-        .json({
-          message: "Aucune soutenance trouvée dans la base de données.",
-        });
+      return res.status(400).json({
+        message: "Aucune soutenance trouvée dans la base de données.",
+      });
     }
 
     // Construire la liste des destinataires
@@ -1741,26 +1765,22 @@ export const sendPlanningSoutenances = async (req, res) => {
 
     const emailHtml =
       typeEnvoi === "first"
-        ? `
-      Bonjour,<br/><br/>
-      Nous avons le plaisir de vous informer que le planning des soutenances de PFAs a été publié. <br/>
-      Vous pouvez consulter les détails du planning en suivant le lien ci-dessous :<br/><br/>
-      <a href="${process.env.API_ENDPOINT}/planning-soutenances" target="_blank" style="color: #007bff; text-decoration: none; font-weight: bold;">
-        Accéder au planning des soutenances
-      </a><br/><br/>
-      Cordialement,<br/>
-      L’équipe de coordination des PFAs.
-    `
-        : `
-      Bonjour,<br/><br/>
-      Nous vous informons que le planning des soutenances de PFAs a été mis à jour. <br/>
-      Veuillez consulter les modifications en suivant le lien ci-dessous :<br/><br/>
-      <a href="${process.env.API_ENDPOINT}/planning-soutenances" target="_blank" style="color: #007bff; text-decoration: none; font-weight: bold;">
-        Accéder au planning mis à jour
-      </a><br/><br/>
-      Cordialement,<br/>
-      L’équipe de coordination des PFAs.
-    `;
+        ? `Bonjour,<br/><br/>
+          Nous avons le plaisir de vous informer que le planning des soutenances de PFAs a été publié. <br/>
+          Vous pouvez consulter les détails du planning en suivant le lien ci-dessous :<br/><br/>
+          <a href="${process.env.API_ENDPOINT}/planning-soutenances" target="_blank" style="color: #007bff; text-decoration: none; font-weight: bold;">
+            Accéder au planning des soutenances
+          </a><br/><br/>
+          Cordialement,<br/>
+          L’équipe de coordination des PFAs.`
+        : `Bonjour,<br/><br/>
+          Nous vous informons que le planning des soutenances de PFAs a été mis à jour. <br/>
+          Veuillez consulter les modifications en suivant le lien ci-dessous :<br/><br/>
+          <a href="${process.env.API_ENDPOINT}/planning-soutenances" target="_blank" style="color: #007bff; text-decoration: none; font-weight: bold;">
+            Accéder au planning mis à jour
+          </a><br/><br/>
+          Cordialement,<br/>
+          L’équipe de coordination des PFAs.`;
 
     // Envoi des emails
     const mailOptions = {
@@ -1771,6 +1791,15 @@ export const sendPlanningSoutenances = async (req, res) => {
     };
 
     await smtpTransport.sendMail(mailOptions);
+
+    // Mettre à jour l'état de chaque soutenance après l'envoi des emails
+    const updateConditions =
+      typeEnvoi === "first"
+        ? { emailSent: true } // Ajouter emailSent: true pour le premier envoi
+        : { isSecondSend: true }; // Mettre isSecondSend à true pour un envoi modifié
+
+    // Mettre à jour l'état des soutenances dans la base de données
+    await soutenancePfaModel.updateMany({}, { $set: updateConditions });
 
     return res.status(200).json({
       success: true,
@@ -1784,6 +1813,53 @@ export const sendPlanningSoutenances = async (req, res) => {
       success: false,
       message: "Une erreur s'est produite lors de l'envoi des emails.",
       error: error.message,
+    });
+  }
+};
+
+export const fetchPlanningSoutenances = async (req, res) => {
+  try {
+    const { enseignantId, etudiantId } = req.query;
+
+    // Vérifier si des critères de filtrage sont fournis
+    if (!enseignantId && !etudiantId) {
+      return res.status(400).json({
+        message: "Veuillez spécifier un filtre : enseignantId ou etudiantId.",
+      });
+    }
+
+    // Construire le filtre en fonction des paramètres de requête
+    const filtre = {};
+    if (enseignantId) {
+      filtre.enseignant = enseignantId;
+    }
+    if (etudiantId) {
+      filtre.etudiants = etudiantId;
+    }
+
+    // Récupérer les plannings des soutenances avec les filtres
+    const plannings = await soutenancePfaModel
+      .find(filtre)
+      .populate("enseignant rapporteur etudiants", "nom prenom _id")
+      .populate("pfa", "titreSujet")
+      .select("date_soutenance heure_soutenance salle");
+
+    // Vérifier s'il y a des soutenances correspondant aux critères
+    if (plannings.length === 0) {
+      return res.status(404).json({
+        message: "Aucune soutenance trouvée pour les critères spécifiés.",
+      });
+    }
+
+    // Retourner les plannings trouvés
+    res.status(200).json({
+      model: plannings,
+      message: "Plannings des soutenances récupérés avec succès.",
+    });
+  } catch (error) {
+    // Gestion des erreurs
+    res.status(500).json({
+      message: error.message,
     });
   }
 };
