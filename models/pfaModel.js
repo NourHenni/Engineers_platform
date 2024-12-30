@@ -47,7 +47,7 @@ const pfaSchema = new mongoose.Schema(
 
     etatDepot: {
       type: String,
-      enum: ["rejected", "not rejected"],
+      enum: ["rejected", "not rejected", "published"],
 
       required: false,
 
