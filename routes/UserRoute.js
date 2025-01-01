@@ -16,12 +16,15 @@ import {
   deleteOrArchiveEnseignantById,
   addStudentsFromFile,
   addTeachersFromFile,
+  updateStudentSituation,
+  updateProfile,
+  getCV,
+  addCVInfo,
+  basculerEntreAnnee,
+  notifyUsersWithDiplome
 } from "../controllers/UserController.js";
 import { authMiddleware } from "../middellwares/authMiddellware.js";
-import {
-  isAdmin,
-  isAdminOrEnseignant,
-} from "../middellwares/roleMiddellware.js";
+import { isAdmin, isAdminOrEnseignant, isEnseignant, isStudent } from "../middellwares/roleMiddellware.js";
 
 import multer from "multer"; // Import multer to handle file uploads
 
@@ -53,18 +56,16 @@ router.post("/students", authMiddleware, isAdmin, upload, async (req, res) => {
 router.get("/students", authMiddleware, isAdminOrEnseignant, getEtudiants);
 router.get("/students/:id", authMiddleware, isAdmin, getEtudiantById);
 router.patch("/students/:id", authMiddleware, isAdmin, updateEtudiantById);
-router.patch(
-  "/students/:id/password",
-  authMiddleware,
-  isAdmin,
-  updateEtudiantPassword
-);
-router.delete(
-  "/students/:id",
-  authMiddleware,
-  isAdmin,
-  deleteOrArchiveStudentById
-);
+router.patch("/students/:id/password",authMiddleware,isAdmin,updateEtudiantPassword);
+router.delete("/students/:id",authMiddleware,isAdmin,deleteOrArchiveStudentById);
+router.put('/years/student/:id', isAdmin, updateStudentSituation);
+router.patch("/students/me", authMiddleware,isStudent, updateProfile);
+router.get("/student/CV/me", authMiddleware,isStudent, getCV);
+router.get("/students/:id/CV", authMiddleware,isAdminOrEnseignant, getCV);
+router.patch('/student/CV', authMiddleware,isStudent, addCVInfo);
+router.get('/years/:year', basculerEntreAnnee);
+router.post('/years/notify',authMiddleware,isAdmin, notifyUsersWithDiplome);
+
 
 // Routes for Enseignants (Teachers)
 router.post("/teachers", authMiddleware, isAdmin, upload, async (req, res) => {
@@ -86,18 +87,8 @@ router.post("/teachers", authMiddleware, isAdmin, upload, async (req, res) => {
 router.get("/teachers", authMiddleware, isAdmin, getEnseignants);
 router.get("/teachers/:id", authMiddleware, getEnseignantById);
 router.patch("/teachers/:id", authMiddleware, updateEnseignantById);
-router.patch(
-  "/teachers/:id/password",
-  authMiddleware,
-  isAdmin,
-  updateEnseignantPassword
-);
-router.delete(
-  "/teachers/:id",
-  authMiddleware,
-  isAdmin,
-  deleteOrArchiveEnseignantById
-);
+router.patch("/teachers/:id/password",authMiddleware,isAdmin,updateEnseignantPassword);
+router.delete("/teachers/:id",authMiddleware,isAdmin,deleteOrArchiveEnseignantById);
 
 router.post("/auth/logout", authMiddleware, logout);
 router.post("/auth/login", login);

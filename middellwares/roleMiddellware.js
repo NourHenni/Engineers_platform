@@ -90,3 +90,15 @@ export const isStillStudent = async (req, res, next) => {
     });
   }
 };
+export const isStudent = (req, res, next) => {
+  const userRole = req.auth.role;
+
+  if (userRole === "etudiant") {
+    return next();
+  }
+
+  return res.status(403).json({
+    success: false,
+    message: "Accès refusé : Vous devez être étudiant.",
+  });
+};
