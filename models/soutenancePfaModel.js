@@ -66,4 +66,4 @@ const soutenanceSchema = new mongoose.Schema(
   }
 );
 
-export default mongoose.model("Soutenance", soutenanceSchema);
+export default mongoose.model("Soutenancepfa", soutenanceSchema);
