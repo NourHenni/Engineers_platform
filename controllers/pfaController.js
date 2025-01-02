@@ -634,8 +634,8 @@ export const fecthPfaById = async (req, res) => {
       });
     }
 
-    const userId = req.auth.userId; // ID de l'utilisateur connecté
-    const userRole = req.auth.role; // Rôle de l'utilisateur connecté (par exemple : "admin", "etudiant", etc.)
+    const userId = req.auth.userId;
+    const userRole = req.auth.role;
 
     if (userRole === "admin") {
       // Si l'utilisateur est un administrateur
@@ -650,7 +650,7 @@ export const fecthPfaById = async (req, res) => {
       // Si l'utilisateur est un étudiant, vérifier son niveau
       const foundEtudiant = await userModel.findOne({
         _id: userId,
-        niveau: "2ING",
+        niveau: 2,
       });
 
       if (!foundEtudiant) {
@@ -802,7 +802,7 @@ export const sendListePfa = async (req, res) => {
   try {
     // Trouver les étudiants au niveau 2ING
     const foundEtudiants = await userModel.find({
-      $and: [{ role: "etudiant" }, { niveau: "2ING" }],
+      $and: [{ role: "etudiant" }, { niveau: 2 }],
     });
 
     if (!foundEtudiants.length) {
@@ -947,7 +947,7 @@ export const fetchPublishedPfa = async (req, res) => {
     const studentId = req.auth.userId;
 
     const foundEtudiant = await userModel.findOne({
-      $and: [{ _id: studentId }, { niveau: "2ING" }],
+      $and: [{ _id: studentId }, { niveau: 2 }],
     });
 
     if (!foundEtudiant) {
@@ -979,7 +979,7 @@ export const choosePfaSubjects = async (req, res) => {
     const { choices, binomeId, acceptedPfa } = req.body;
 
     const foundEtudiant = await userModel.findOne({
-      $and: [{ _id: studentId }, { niveau: "2ING" }],
+      $and: [{ _id: studentId }, { niveau: 2 }],
     });
 
     if (!foundEtudiant) {
@@ -1061,7 +1061,7 @@ export const choosePfaSubjects = async (req, res) => {
       binome = await userModel.findOne({
         _id: binomeId,
         role: "etudiant",
-        niveau: "2ING",
+        niveau: 2,
       });
 
       if (!binome || binomeId === studentId) {
@@ -1643,7 +1643,7 @@ export const manualAssignment = async (req, res) => {
       });
     }
 
-    if (foundEtudiant.niveau !== "2ING") {
+    if (foundEtudiant.niveau !== 2) {
       return res.status(400).json({
         success: false,
         message: "Vous ne pouvez affecter que des étudiants de niveau 2ING.",
@@ -1665,7 +1665,7 @@ export const manualAssignment = async (req, res) => {
         });
       }
 
-      if (secondEtudiant.niveau !== "2ING") {
+      if (secondEtudiant.niveau !== 2) {
         return res.status(400).json({
           success: false,
           message: "Le deuxième étudiant doit être en 2ING.",
@@ -1795,7 +1795,7 @@ export const sendListePfaAffected = async (req, res) => {
   try {
     // Trouver les étudiants au niveau 2ING
     const foundEtudiants = await userModel.find({
-      $and: [{ role: "etudiant" }, { niveau: "2ING" }],
+      $and: [{ role: "etudiant" }, { niveau: 2 }],
     });
 
     if (!foundEtudiants.length) {
@@ -1977,7 +1977,7 @@ export const fetchAssignedPfa = async (req, res) => {
     const studentId = req.auth.userId;
 
     const foundEtudiant = await userModel.findOne({
-      $and: [{ _id: studentId }, { niveau: "2ING" }],
+      $and: [{ _id: studentId }, { niveau: 2 }],
     });
 
     if (!foundEtudiant) {
@@ -2007,10 +2007,9 @@ export const fetchMyPfa = async (req, res) => {
   try {
     const studentId = req.auth.userId;
 
-    // Vérifier si l'étudiant est en 2ème année (niveau : "2ING")
     const foundEtudiant = await userModel.findOne({
       _id: studentId,
-      niveau: "2ING",
+      niveau: 2,
     });
 
     if (!foundEtudiant) {

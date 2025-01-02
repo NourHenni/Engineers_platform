@@ -70,7 +70,7 @@ const userSchema = new mongoose.Schema(
     isFirstSendPfa: { type: Boolean, default: false },
     isFirstSendEte: { type: Boolean, default: false },
     isFirstSendListePfa: { type: Boolean, default: false },
-    niveau: { type: String, enum: ["1ING", "2ING", "3ING"] },
+    niveau: { type: Number, enum: [1, 2, 3] },
 
     isGraduated: {
       type: String,
