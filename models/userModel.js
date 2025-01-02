@@ -81,6 +81,7 @@ const userSchema = new mongoose.Schema(
       type: Boolean, // Boolean type to indicate true or false
       default: false, // Default value is set to false
     },
+
     matieres: [
       {
         type: mongoose.Schema.Types.ObjectId,
@@ -98,10 +99,8 @@ const userSchema = new mongoose.Schema(
     },
     grade: {
       type: String,
-      required: false,
     },
   },
-
   {
     timestamps: true,
   }
