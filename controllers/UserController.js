@@ -1,21 +1,20 @@
 import User from "../models/userModel.js";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
-import xlsx from 'xlsx';
+import xlsx from "xlsx";
 import { sendEmail } from "../services/emailservice.js";
 import pfaModel from "../models/pfaModel.js";
 import stageEteModel from "../models/stageEteModel.js";
-      // Adjust the path as needed
-const Matieres = require('../models/matiereModel');
-const Year = require('../models/yearModel');  
-const Competences =require('../models/competenceModel')
+// Adjust the path as needed
+import Matieres from "../models/matiereModel.js";
+import Year from "../models/yearModel.js";
+import Competences from "../models/competenceModel.js";
 
 import nodemailer from "nodemailer";
 import dotenv from "dotenv";
 
 // Load environment variables from .env file
-dotenv.config();  
-
+dotenv.config();
 
 ////////////////////////ALL USERS//////////////////////////
 export const login = async (req, res) => {
@@ -31,12 +30,16 @@ export const login = async (req, res) => {
     // Check if the user is archived
     if (foundUser.archivee) {
       return res.status(403).json({
-        message: "Votre compte est archivé. Veuillez contacter l'administrateur.",
+        message:
+          "Votre compte est archivé. Veuillez contacter l'administrateur.",
       });
     }
 
     // Compare the provided password with the hashed password stored in the database
-    const validPassword = await bcrypt.compare(req.body.password, foundUser.password);
+    const validPassword = await bcrypt.compare(
+      req.body.password,
+      foundUser.password
+    );
     if (!validPassword) {
       return res.status(401).json({
         message: "CIN ou mot de passe incorrect",
@@ -89,7 +92,9 @@ export const createEtudiant = async (req, res) => {
     }
 
     // Check if the email already exists in the database
-    const foundUser = await User.findOne({ adresseEmail: req.body.adresseEmail });
+    const foundUser = await User.findOne({
+      adresseEmail: req.body.adresseEmail,
+    });
     if (foundUser) {
       return res.status(400).json({
         success: false,
@@ -177,7 +182,7 @@ export const getEtudiants = async (req, res) => {
     const { year } = req.body;
 
     // Construct the query object
-    const query = { role: 'etudiant' };
+    const query = { role: "etudiant" };
 
     // If a year is provided in the request body, add it to the query
     if (year) {
@@ -201,7 +206,7 @@ export const getEtudiants = async (req, res) => {
 export const getEtudiantById = async (req, res) => {
   try {
     const { id } = req.params;
-    const user = await User.findOne({ _id: id, role: 'etudiant' });
+    const user = await User.findOne({ _id: id, role: "etudiant" });
 
     if (!user) {
       return res.status(404).json({
@@ -315,7 +320,13 @@ export const updateEtudiantPassword = async (req, res) => {
 
     // Optionally, send a notification email
     try {
-      await sendEmail(user.adresseEmail, user.nom, user.prenom, user.cin, nouveau);
+      await sendEmail(
+        user.adresseEmail,
+        user.nom,
+        user.prenom,
+        user.cin,
+        nouveau
+      );
     } catch (emailError) {
       console.error("Échec de l'envoi de l'email:", emailError.message);
       return res.status(500).json({
@@ -436,10 +447,25 @@ export const addStudentsFromFile = async (req, res) => {
       } = student;
 
       // Validate required fields
-      if (!nom || !prenom || !cin || !adresseEmail || !dateDeNaissance || !genre || !gouvernorat || !addresse || !ville || !code_postal || !nationalite || !telephone || !annee_entree_isamm) {
+      if (
+        !nom ||
+        !prenom ||
+        !cin ||
+        !adresseEmail ||
+        !dateDeNaissance ||
+        !genre ||
+        !gouvernorat ||
+        !addresse ||
+        !ville ||
+        !code_postal ||
+        !nationalite ||
+        !telephone ||
+        !annee_entree_isamm
+      ) {
         return res.status(400).json({
           success: false,
-          message: "Incorrect file format. Ensure all required fields are present.",
+          message:
+            "Incorrect file format. Ensure all required fields are present.",
         });
       }
 
@@ -506,92 +532,93 @@ export const addStudentsFromFile = async (req, res) => {
   }
 };
 
-
-export  const updateStudentSituation = async (req, res) => {
+export const updateStudentSituation = async (req, res) => {
   try {
-      const { id } = req.params;
-      const { nouvelleSituation } = req.body;
+    const { id } = req.params;
+    const { nouvelleSituation } = req.body;
 
-      // Validate input
-      const validSituations = ['passe', 'redouble', 'diplômé'];
-      if (!validSituations.includes(nouvelleSituation)) {
-          return res.status(400).json({ error: 'Invalid situation value' });
+    // Validate input
+    const validSituations = ["passe", "redouble", "diplômé"];
+    if (!validSituations.includes(nouvelleSituation)) {
+      return res.status(400).json({ error: "Invalid situation value" });
+    }
+
+    // Find the student
+    const student = await Student.findById(id);
+    if (!student) {
+      return res.status(404).json({ error: "Student not found" });
+    }
+
+    // Update the student's situation and niveau
+    student.situation = nouvelleSituation;
+
+    if (nouvelleSituation === "passe") {
+      // Increment niveau if below the max level
+      if (student.niveau < 3) {
+        student.niveau += 1;
+      } else {
+        return res
+          .status(400)
+          .json({ error: "Cannot increment niveau beyond 3" });
       }
+    }
 
-      // Find the student
-      const student = await Student.findById(id);
-      if (!student) {
-          return res.status(404).json({ error: 'Student not found' });
-      }
+    await student.save();
 
-      // Update the student's situation and niveau
-      student.situation = nouvelleSituation;
-
-      if (nouvelleSituation === 'passe') {
-          // Increment niveau if below the max level
-          if (student.niveau < 3) {
-              student.niveau += 1;
-          } else {
-              return res.status(400).json({ error: 'Cannot increment niveau beyond 3' });
-          }
-      }
-
-      await student.save();
-
-      res.status(200).json({ message: 'Situation and niveau updated successfully', student });
+    res
+      .status(200)
+      .json({ message: "Situation and niveau updated successfully", student });
   } catch (error) {
-      console.error(error);
-      res.status(500).json({ error: 'Internal server error' });
+    console.error(error);
+    res.status(500).json({ error: "Internal server error" });
   }
 };
-
 
 export const createAcademicYear = async (req, res) => {
   try {
-      const { anneeUniversitaire } = req.body;
+    const { anneeUniversitaire } = req.body;
 
-      if (!anneeUniversitaire) {
-          return res.status(400).json({ error: "année universitaire is required" });
+    if (!anneeUniversitaire) {
+      return res.status(400).json({ error: "année universitaire is required" });
+    }
+
+    // Check if the year already exists
+    const existingYear = await Year.findOne({ year: anneeUniversitaire });
+    if (existingYear) {
+      return res.status(400).json({ error: "Academic year already exists" });
+    }
+
+    // Create a new year
+    const newYear = new Year({ year: anneeUniversitaire });
+    await newYear.save();
+
+    // Update students' data for the new year
+    await User.updateMany(
+      {},
+      {
+        $set: {
+          stageete: null, // Clear internships
+          pfa: null, // Clear PFA
+        },
       }
+    );
 
-      // Check if the year already exists
-      const existingYear = await Year.findOne({ year: anneeUniversitaire });
-      if (existingYear) {
-          return res.status(400).json({ error: "Academic year already exists" });
+    await Matieres.updateMany(
+      {},
+      {
+        $set: {
+          competences: null, // Clear competences
+          enseignant: null, // Clear enseignant
+        },
       }
+    );
 
-      // Create a new year
-      const newYear = new Year({ year: anneeUniversitaire });
-      await newYear.save();
-
-      // Update students' data for the new year
-      await User.updateMany(
-          {}, 
-          {
-              $set: {
-                  stageete: null, // Clear internships
-                  pfa: null,  // Clear PFA
-              },
-          }
-      );
-
-      await Matieres.updateMany(
-          {}, 
-          {
-              $set: {
-                  competences: null, // Clear competences
-                  enseignant: null,  // Clear enseignant
-              },
-          }
-      );
-
-      res.status(201).json({ message: "New academic year created successfully" });
+    res.status(201).json({ message: "New academic year created successfully" });
   } catch (error) {
-      console.error(error);
-      res.status(500).json({ error: "Internal server error" });
+    console.error(error);
+    res.status(500).json({ error: "Internal server error" });
   }
 };
-
 
 export const getCV = async (req, res) => {
   try {
@@ -610,7 +637,11 @@ export const getCV = async (req, res) => {
 
     // Check if no Pfa or StageEte found
     if (!pfa && !stageEte && cvinfos.length === 0) {
-      return res.status(404).json({ message: "No Pfa, StageEte or CV info found for the given student ID" });
+      return res
+        .status(404)
+        .json({
+          message: "No Pfa, StageEte or CV info found for the given student ID",
+        });
     }
 
     res.status(200).json({
@@ -628,13 +659,14 @@ export const getCV = async (req, res) => {
   }
 };
 
-
 export const addCVInfo = async (req, res) => {
   try {
     const { newCVInfo } = req.body; // Get the new CV information (string) from the request body
 
     if (!newCVInfo) {
-      return res.status(400).json({ message: "New CV information is required" });
+      return res
+        .status(400)
+        .json({ message: "New CV information is required" });
     }
 
     const userId = req.auth.userId; // Extract the user ID from the auth middleware
@@ -663,16 +695,14 @@ export const addCVInfo = async (req, res) => {
   }
 };
 
-
-
 export const basculerEntreAnnee = async (req, res) => {
   try {
-    const { year } = req.params;  // Extract the year from the URL parameters
+    const { year } = req.params; // Extract the year from the URL parameters
 
     // Step 1: Get the list of users whose annee_entree_isamm is <= the provided year
     const users = await User.find({
-      annee_entree_isamm: { $lte: year },  // Find users with annee_entree_isamm <= year
-      role: 'etudiant',  // Filter only students
+      annee_entree_isamm: { $lte: year }, // Find users with annee_entree_isamm <= year
+      role: "etudiant", // Filter only students
     });
 
     // Step 2: Get the list of PFAs and StageEtes filtered by the provided year
@@ -700,9 +730,6 @@ export const basculerEntreAnnee = async (req, res) => {
     });
   }
 };
-
-
-
 
 export const updateProfile = async (req, res) => {
   try {
@@ -744,10 +771,6 @@ export const updateProfile = async (req, res) => {
   }
 };
 
-
-
-
-
 /////////////////////////////////////////////////////////////
 //////////////////////ENSEIGNANT//////////////////////////
 export const createEnseignant = async (req, res) => {
@@ -766,7 +789,9 @@ export const createEnseignant = async (req, res) => {
     }
 
     // Check if the email already exists in the database
-    const foundUser = await User.findOne({ adresseEmail: req.body.adresseEmail });
+    const foundUser = await User.findOne({
+      adresseEmail: req.body.adresseEmail,
+    });
     if (foundUser) {
       return res.status(400).json({
         success: false,
@@ -812,11 +837,8 @@ export const createEnseignant = async (req, res) => {
     // Remove the password from the response data for security
     const { password, ...newUser } = user.toObject();
 
-
-
-
-     // Send the email with CIN and password
-     try {
+    // Send the email with CIN and password
+    try {
       await sendEmail(
         req.body.adresseEmail,
         req.body.prenom,
@@ -845,7 +867,7 @@ export const createEnseignant = async (req, res) => {
 };
 export const getEnseignants = async (req, res) => {
   try {
-    const users = await User.find({ role: 'enseignant' });
+    const users = await User.find({ role: "enseignant" });
     res.status(200).json({
       model: users,
       message: "success",
@@ -859,7 +881,7 @@ export const getEnseignants = async (req, res) => {
 export const getEnseignantById = async (req, res) => {
   try {
     const { id } = req.params;
-    const user = await User.findOne({ _id: id, role: 'enseignant' });
+    const user = await User.findOne({ _id: id, role: "enseignant" });
 
     if (!user) {
       return res.status(404).json({
@@ -886,7 +908,7 @@ export const updateEnseignantById = async (req, res) => {
     const updateData = req.body;
 
     // Retrieve the existing user before update to compare CIN
-    const existingUser = await User.findOne({ _id: id, role: 'enseignant' });
+    const existingUser = await User.findOne({ _id: id, role: "enseignant" });
     if (!existingUser) {
       return res.status(404).json({
         success: false,
@@ -898,7 +920,7 @@ export const updateEnseignantById = async (req, res) => {
     const isCINUpdated = existingUser.cin !== updateData.cin;
 
     const updatedUser = await User.findOneAndUpdate(
-      { _id: id, role: 'enseignant' },
+      { _id: id, role: "enseignant" },
       updateData,
       { new: true, runValidators: true }
     );
@@ -912,7 +934,13 @@ export const updateEnseignantById = async (req, res) => {
 
     // If CIN is updated, send an email
     if (isCINUpdated) {
-      await sendEmail(updatedUser.adresseEmail, updatedUser.nom, updatedUser.prenom, updatedUser.cin, updatedUser.password);
+      await sendEmail(
+        updatedUser.adresseEmail,
+        updatedUser.nom,
+        updatedUser.prenom,
+        updatedUser.cin,
+        updatedUser.password
+      );
     }
 
     res.status(200).json({
@@ -939,7 +967,7 @@ export const updateEnseignantPassword = async (req, res) => {
       });
     }
 
-    const user = await User.findOne({ _id: id, role: 'enseignant' });
+    const user = await User.findOne({ _id: id, role: "enseignant" });
     if (!user) {
       return res.status(404).json({
         success: false,
@@ -952,7 +980,13 @@ export const updateEnseignantPassword = async (req, res) => {
     await user.save();
 
     // Send email with the new password
-    await sendEmail(user.adresseEmail, user.nom, user.prenom, user.cin, nouveau);
+    await sendEmail(
+      user.adresseEmail,
+      user.nom,
+      user.prenom,
+      user.cin,
+      nouveau
+    );
 
     res.status(200).json({
       success: true,
@@ -971,7 +1005,7 @@ export const deleteOrArchiveEnseignantById = async (req, res) => {
     const { action } = req.body; // action can be 'delete' or 'archive'
 
     // Find the enseignant by ID and check if they exist
-    const enseignant = await User.findOne({ _id: id, role: 'enseignant' });
+    const enseignant = await User.findOne({ _id: id, role: "enseignant" });
 
     if (!enseignant) {
       return res.status(404).json({
@@ -981,13 +1015,13 @@ export const deleteOrArchiveEnseignantById = async (req, res) => {
     }
 
     // Perform the action based on the 'action' parameter
-    if (action === 'delete') {
+    if (action === "delete") {
       await User.findByIdAndDelete(id); // Permanently delete the enseignant
       return res.status(200).json({
         success: true,
         message: "Utilisateur supprimé avec succès",
       });
-    } else if (action === 'archive') {
+    } else if (action === "archive") {
       enseignant.archivee = true; // Set the archivee attribute to true
       await enseignant.save();
       return res.status(200).json({
@@ -1008,7 +1042,6 @@ export const deleteOrArchiveEnseignantById = async (req, res) => {
   }
 };
 export const addTeachersFromFile = async (req, res) => {
-
   try {
     if (!req.file) {
       return res.status(400).json({
@@ -1043,10 +1076,26 @@ export const addTeachersFromFile = async (req, res) => {
       } = teacher;
 
       // Validate required fields
-      if (!nom || !prenom || !cin || !adresseEmail || !dateDeNaissance || !genre || !gouvernorat || !addresse || !ville || !code_postal || !nationalite || !telephone || !annee_entree_isamm || !grade) {
+      if (
+        !nom ||
+        !prenom ||
+        !cin ||
+        !adresseEmail ||
+        !dateDeNaissance ||
+        !genre ||
+        !gouvernorat ||
+        !addresse ||
+        !ville ||
+        !code_postal ||
+        !nationalite ||
+        !telephone ||
+        !annee_entree_isamm ||
+        !grade
+      ) {
         return res.status(400).json({
           success: false,
-          message: "Incorrect file format. Ensure all required fields are present.",
+          message:
+            "Incorrect file format. Ensure all required fields are present.",
         });
       }
 
@@ -1103,34 +1152,22 @@ export const addTeachersFromFile = async (req, res) => {
 };
 ////////////////////////////////////////////////////////////////////
 
-
-
-
-
-
-
-
-
-
-
-
-
 // Create a reusable transporter object using environment variables for configuration
 const transporter = nodemailer.createTransport({
-  service: process.env.MAILER_SERVICE_PROVIDER,  // Use the email service provider from env
-  host: process.env.HOST,                      // SMTP host
-  port: process.env.PORT_SLL,                  // SSL port
-  secure: true,                                // Use secure connection
+  service: process.env.MAILER_SERVICE_PROVIDER, // Use the email service provider from env
+  host: process.env.HOST, // SMTP host
+  port: process.env.PORT_SLL, // SSL port
+  secure: true, // Use secure connection
   auth: {
-    user: process.env.MAILER_EMAIL_ID,         // Sender's email from env
-    pass: process.env.MAILER_PASSWORD,         // Sender's email password or app password from env
+    user: process.env.MAILER_EMAIL_ID, // Sender's email from env
+    pass: process.env.MAILER_PASSWORD, // Sender's email password or app password from env
   },
 });
 
 // Define the sendEmail function
 const sendEmailold = async (to, firstName, lastName) => {
   const mailOptions = {
-    from: process.env.MAILER_EMAIL_ID,  // Sender's email from env
+    from: process.env.MAILER_EMAIL_ID, // Sender's email from env
     to: to,
     subject: "Update Your CV on the Platform",
     text: `Dear ${firstName} ${lastName},\n\nWe noticed that your situation is marked as 'diplome'. Please remember to update your CV on the platform.\n\nBest regards, The Team.`,
@@ -1149,10 +1186,12 @@ const sendEmailold = async (to, firstName, lastName) => {
 export const notifyUsersWithDiplome = async (req, res) => {
   try {
     // Get all users with situation = 'diplome'
-    const users = await User.find({ situation: 'diplome' });
+    const users = await User.find({ situation: "diplome" });
 
     if (users.length === 0) {
-      return res.status(404).json({ message: "No users found with situation 'diplome'." });
+      return res
+        .status(404)
+        .json({ message: "No users found with situation 'diplome'." });
     }
 
     // Send email to each user
@@ -1160,14 +1199,14 @@ export const notifyUsersWithDiplome = async (req, res) => {
       await sendEmailold(user.email, user.firstName, user.lastName);
     }
 
-    res.status(200).json({ message: "Emails sent successfully to all users with situation 'diplome'." });
+    res
+      .status(200)
+      .json({
+        message:
+          "Emails sent successfully to all users with situation 'diplome'.",
+      });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: "Error sending email notifications." });
   }
 };
-
-
-
-
-

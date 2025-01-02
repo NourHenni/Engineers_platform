@@ -1,7 +1,7 @@
-const mongoose = require('mongoose');
+import mongoose from "mongoose";
 
 const yearSchema = new mongoose.Schema({
-    year: { type: String, required: true, unique: true },
+  year: { type: String, required: true, unique: true },
 });
 
-module.exports = mongoose.model('Year', yearSchema);
+export default mongoose.model("Year", yearSchema);

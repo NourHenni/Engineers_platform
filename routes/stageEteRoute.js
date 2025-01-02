@@ -1,6 +1,5 @@
 import express from "express";
 import {
-  fetchStagesEte,
   getAllPeriods,
   postInternship,
 } from "../controllers/stageEteController.js";
@@ -77,8 +76,5 @@ router.get(
   getAssignedStages
 );
 router.post("/:type/:id", authMiddleware, isEnseignant, planifierSoutenance);
-
-
-
 
 export default router;
