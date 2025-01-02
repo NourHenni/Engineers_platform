@@ -3,6 +3,8 @@ import userModel from "../models/userModel.js";
 import moment from "moment";
 import periodeModel from "../models/periodeModel.js";
 import nodemailer from "nodemailer";
+import soutenancePfaModel from "../models/soutenancePfaModel.js";
+import mongoose from "mongoose";
 
 const FROM_EMAIL = process.env.MAILER_EMAIL_ID;
 const AUTH_PASSWORD = process.env.MAILER_PASSWORD;
@@ -88,13 +90,6 @@ export const getPeriodes = async (req, res) => {
 export const updateDelais = async (req, res) => {
   try {
     const { DateDebutDepot, DateFinDepot } = req.body;
-
-    // Vérification des champs obligatoires
-    if (!DateFinDepot || !DateDebutDepot) {
-      return res.status(400).json({
-        error: "Le champ 'DateFinDepot' ou 'DateDebutDepot est requis.",
-      });
-    }
 
     // Recherche de la période spécifique (exemple : "PFA")
     const periode = await periodeModel.findOne({ type: "PFA Project" });
@@ -416,14 +411,6 @@ export const modifyPfaSubject = async (req, res) => {
 
     // Si estBinome est vrai, essayer de trouver deux étudiants si les informations sont données
     if (estBinome) {
-      // Vérifier que les deux identifiants d'étudiants sont fournis
-      if (!idEtudiant1 || !idEtudiant2) {
-        return res.status(400).json({
-          message:
-            "Lorsque estBinome est vrai, deux identifiants d'étudiants doivent être fournis.",
-        });
-      }
-
       const etudiant1 = await userModel.findOne({
         _id: idEtudiant1,
         role: "etudiant",
@@ -1738,6 +1725,173 @@ export const manualAssignment = async (req, res) => {
     });
   }
 };
+export const ajouterSoutenance = async (req, res) => {
+  try {
+    // Étape 1 : Récupérer les sujets PFA publiés avec les enseignants
+    const sujets = await pfaModel
+      .find({ etatAffectation: "published" })
+      .populate("enseignant etudiants", "nom prenom _id")
+      .select("titreSujet enseignant etudiants");
+
+    if (!sujets.length) {
+      return res.status(404).json({
+        message: "Aucun sujet PFA trouvé.",
+      });
+    }
+
+    // Étape 2 : Vérification des étudiants associés à plusieurs sujets PFA
+    const etudiantSujetMap = new Map(); // Stocke l'association étudiant -> sujet
+
+    for (const sujet of sujets) {
+      for (const etudiant of sujet.etudiants) {
+        if (etudiantSujetMap.has(etudiant._id.toString())) {
+          const autreSujet = etudiantSujetMap.get(etudiant._id.toString());
+          return res.status(400).json({
+            message: `L'étudiant ${etudiant.nom} ${etudiant.prenom} est déjà associé au sujet PFA "${autreSujet.titreSujet}".`,
+          });
+        }
+        etudiantSujetMap.set(etudiant._id.toString(), sujet);
+      }
+    }
+
+    // Étape 3 : Grouper les sujets par enseignant
+    const sujetsParEnseignant = {};
+    sujets.forEach((sujet) => {
+      const enseignantId = sujet.enseignant._id.toString();
+      if (!sujetsParEnseignant[enseignantId]) {
+        sujetsParEnseignant[enseignantId] = [];
+      }
+      sujetsParEnseignant[enseignantId].push(sujet);
+    });
+
+    // Étape 4 : Assigner chaque enseignant comme rapporteur pour les sujets de l'autre
+    const enseignantsIds = Object.keys(sujetsParEnseignant);
+    if (enseignantsIds.length < 2) {
+      return res.status(400).json({
+        message:
+          "Il faut au moins deux enseignants pour équilibrer les soutenances.",
+      });
+    }
+
+    const soutenancesCrees = [];
+    const dateInitiale = moment().add(7, "days"); // Soutenances prévues dans une semaine
+    const heureDebutJournee = 8 * 60; // 09:00 en minutes
+    const dureeSoutenance = 30; // 30 minutes par soutenance
+
+    let dateSoutenance = moment(dateInitiale);
+    let heureActuelle = heureDebutJournee;
+
+    for (const enseignantId of enseignantsIds) {
+      const sujetsEncadres = sujetsParEnseignant[enseignantId];
+
+      // Trouver le rapporteur (l'autre enseignant)
+      const autresEnseignants = enseignantsIds.filter(
+        (id) => id !== enseignantId
+      );
+      const rapporteurId = autresEnseignants[0]; // Choix simple car deux enseignants seulement
+
+      for (const sujet of sujetsEncadres) {
+        const etudiants = sujet.etudiants.map((e) => e._id);
+
+        let soutenancesMemeJour = await soutenancePfaModel.find({
+          date_soutenance: {
+            $gte: dateSoutenance.clone().startOf("day").toDate(),
+            $lt: dateSoutenance.clone().endOf("day").toDate(),
+          },
+        });
+
+        let creationReussie = false;
+        while (!creationReussie) {
+          if (soutenancesMemeJour.length >= 6) {
+            dateSoutenance.add(1, "days");
+            heureActuelle = heureDebutJournee;
+            soutenancesMemeJour = [];
+          }
+
+          const heureDebut = moment(dateSoutenance).set({
+            hours: Math.floor(heureActuelle / 60),
+            minutes: heureActuelle % 60,
+          });
+
+          const heureFin = moment(heureDebut).add(dureeSoutenance, "minutes");
+
+          if (heureFin.hour() >= 16) {
+            dateSoutenance.add(1, "days");
+            heureActuelle = heureDebutJournee;
+            soutenancesMemeJour = [];
+            continue;
+          }
+
+          // Vérifier conflits horaires
+          const conflitHoraire = await soutenancePfaModel.findOne({
+            date_soutenance: dateSoutenance.toDate(),
+            salle: "Salle 1",
+            $or: [
+              {
+                heure_soutenance: {
+                  $gte: heureDebut.toDate(),
+                  $lt: heureFin.toDate(),
+                },
+              },
+              {
+                finHeure: { $gt: heureDebut.toDate(), $lte: heureFin.toDate() },
+              },
+            ],
+          });
+
+          if (conflitHoraire) {
+            heureActuelle += dureeSoutenance;
+            continue;
+          }
+
+          // Créer la soutenance
+          const soutenance = new soutenancePfaModel({
+            pfa: sujet._id,
+            etudiants,
+            date_soutenance: dateSoutenance.toDate(),
+            heure_soutenance: heureDebut.format("HH:mm"),
+            finHeure: heureFin.format("HH:mm"),
+            salle: "Salle 1",
+            rapporteur: rapporteurId,
+            enseignant: enseignantId,
+          });
+
+          await soutenance.save();
+
+          const soutenancePopulee = await soutenance.populate(
+            "enseignant rapporteur etudiants",
+            "nom prenom _id"
+          );
+
+          soutenancesCrees.push(soutenancePopulee);
+
+          heureActuelle += dureeSoutenance;
+          soutenancesMemeJour = await soutenancePfaModel.find({
+            date_soutenance: {
+              $gte: dateSoutenance.clone().startOf("day").toDate(),
+              $lt: dateSoutenance.clone().endOf("day").toDate(),
+            },
+          });
+
+          creationReussie = true;
+        }
+      }
+    }
+
+    return res.status(200).json({
+      message: "Soutenances automatiques créées avec succès.",
+      soutenances: soutenancesCrees,
+    });
+  } catch (error) {
+    console.error(
+      "Erreur lors de la création des soutenances automatiques :",
+      error.message
+    );
+    return res.status(500).json({
+      message: `Erreur serveur: ${error.message}`,
+    });
+  }
+};
 
 export const publishAffectedPfas = async (req, res) => {
   try {
@@ -1786,6 +1940,355 @@ export const publishAffectedPfas = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Une erreur est survenue lors de la publication.",
+    });
+  }
+};
+export const modifierSoutenance = async (req, res) => {
+  try {
+    const { id } = req.params; // Récupération de l'ID de la soutenance depuis les paramètres
+    const { date_soutenance, heure_soutenance, salle, rapporteur } = req.body; // Champs à modifier
+
+    // Vérification de l'existence de la soutenance
+    const soutenance = await soutenancePfaModel.findById(id);
+    if (!soutenance) {
+      return res.status(404).json({ message: "Soutenance introuvable." });
+    }
+
+    // Validation de l'ID du rapporteur si fourni
+    if (rapporteur && !mongoose.Types.ObjectId.isValid(rapporteur)) {
+      return res
+        .status(400)
+        .json({ message: "Identifiant du rapporteur invalide." });
+    }
+
+    // Vérification de l'existence du rapporteur
+    if (rapporteur) {
+      const rapporteurExist = await userModel.findById(rapporteur);
+      if (!rapporteurExist) {
+        return res
+          .status(400)
+          .json({ message: "Identifiant du rapporteur inexistant." });
+      }
+    }
+
+    // Vérification si l'identifiant du rapporteur modifié est le même que l'enseignant
+    if (rapporteur && rapporteur === soutenance.enseignant.toString()) {
+      return res.status(400).json({
+        message:
+          "L'identifiant du rapporteur ne peut pas être le même que celui de l'enseignant.",
+      });
+    }
+
+    // Vérification des soutenances encadrées et rapportées par le rapporteur modifié
+    if (rapporteur) {
+      const soutenancesEncadrant = await soutenancePfaModel.find({
+        enseignant: rapporteur,
+      });
+      const soutenancesRapporteur = await soutenancePfaModel.find({
+        rapporteur,
+      });
+
+      // Vérification que le rapporteur n'encadre pas plus de soutenances qu'il ne rapporte
+      if (soutenancesEncadrant.length > soutenancesRapporteur.length) {
+        return res.status(400).json({
+          message:
+            "Le rapporteur doit encadrer un nombre égal de soutenances à celles qu'il rapporte.",
+        });
+      }
+
+      // Vérification que le rapporteur ne rapporte pas plus de soutenances qu'il en encadre
+      if (soutenancesRapporteur.length > soutenancesEncadrant.length) {
+        return res.status(400).json({
+          message:
+            "Le rapporteur ne peut pas rapporter plus de soutenances qu'il n'en encadre.",
+        });
+      }
+    }
+
+    // Déclaration de finHeureFormatted uniquement si heure_soutenance est fournie
+    let finHeureFormatted;
+    if (heure_soutenance) {
+      const heureParts = heure_soutenance.split(":");
+      const heureDebut = parseInt(heureParts[0]) * 60 + parseInt(heureParts[1]); // Convertir l'heure en minutes
+      const finHeure = heureDebut + 30; // Durée de soutenance de 30 minutes
+
+      if (heureDebut < 480 || finHeure > 960) {
+        return res.status(400).json({
+          message: "La soutenance doit être programmée entre 08:00 et 16:00.",
+        });
+      }
+
+      finHeureFormatted = `${String(Math.floor(finHeure / 60)).padStart(
+        2,
+        "0"
+      )}:${String(finHeure % 60).padStart(2, "0")}`;
+    }
+
+    // Vérification des conflits d'horaires dans la même salle
+    if (salle && date_soutenance && heure_soutenance) {
+      const conflitHoraire = await soutenancePfaModel.findOne({
+        date_soutenance,
+        salle,
+        _id: { $ne: id }, // Exclure la soutenance actuelle
+        $or: [
+          {
+            heure_soutenance: { $lt: finHeureFormatted }, // Vérifier que l'heure de début de la soutenance modifiée est avant la fin de l'autre
+            finHeure: { $gt: heure_soutenance }, // Vérifier que la fin de l'autre soutenance est après l'heure de début
+          },
+          {
+            heure_soutenance: { $gte: heure_soutenance }, // Vérifier que l'heure de début de la soutenance modifiée est après ou égale à celle de l'autre
+            heure_soutenance: { $lt: finHeureFormatted }, // Vérifier que l'heure de début est avant la fin de l'autre
+          },
+        ],
+      });
+
+      if (conflitHoraire) {
+        return res.status(400).json({
+          message:
+            "Conflit d'horaires avec une autre soutenance dans la même salle.",
+        });
+      }
+    }
+
+    // Vérification des conflits pour l'encadrant (enseignant) et le rapporteur (dans d'autres soutenances, même date et heure mais dans d'autres salles)
+    if (rapporteur || heure_soutenance || salle) {
+      const conflitEnseignantRapporteur = await soutenancePfaModel.findOne({
+        date_soutenance,
+        $or: [
+          { enseignant: soutenance.enseignant }, // Vérification pour l'encadrant existant
+          { rapporteur }, // Vérification pour le rapporteur modifié
+        ],
+        _id: { $ne: id }, // Exclure la soutenance actuelle
+        salle: { $ne: salle }, // Vérification dans une autre salle
+        $or: [
+          {
+            heure_soutenance: {
+              $gte: heure_soutenance,
+              $lt: finHeureFormatted,
+            },
+          },
+          { finHeure: { $gt: heure_soutenance, $lte: finHeureFormatted } },
+        ],
+      });
+
+      if (conflitEnseignantRapporteur) {
+        return res.status(400).json({
+          message:
+            "L'encadrant ou le rapporteur est déjà engagé dans une autre soutenance à la même date et heure dans une autre salle.",
+        });
+      }
+    }
+
+    const soutenancesMemeJour = await soutenancePfaModel.find({
+      date_soutenance: {
+        $gte: new Date(date_soutenance).setHours(0, 0, 0, 0),
+        $lt: new Date(date_soutenance).setHours(23, 59, 59, 999),
+      },
+      _id: { $ne: id },
+    });
+
+    if (soutenancesMemeJour.length >= 6) {
+      return res.status(400).json({
+        message: "Nombre maximal de soutenances atteint pour ce jour.",
+      });
+    }
+
+    // Mise à jour des champs spécifiés uniquement s'ils sont présents dans la requête
+    if (date_soutenance) soutenance.date_soutenance = date_soutenance;
+    if (heure_soutenance) soutenance.heure_soutenance = heure_soutenance;
+    if (salle) soutenance.salle = salle;
+
+    // Mise à jour du rapporteur avec une vérification explicite
+    if (rapporteur !== undefined) {
+      soutenance.rapporteur =
+        rapporteur === null ? soutenance.rapporteur : rapporteur;
+    }
+
+    if (finHeureFormatted) soutenance.finHeure = finHeureFormatted;
+
+    await soutenance.save();
+
+    // Retourne la soutenance mise à jour, avec la gestion correcte du rapporteur
+    const updatedSoutenance = await soutenance.populate(
+      "rapporteur",
+      "nom prenom"
+    );
+
+    return res.status(200).json({
+      message: "Soutenance mise à jour avec succès.",
+      soutenance: updatedSoutenance,
+    });
+  } catch (error) {
+    console.error("Erreur lors de la modification de la soutenance :", error);
+    return res.status(500).json({ message: "Erreur serveur." });
+  }
+};
+
+// Contrôleur pour publier ou masquer les soutenances
+export const publierOuMasquerSoutenances = async (req, res) => {
+  try {
+    // Récupération du paramètre 'response' (publish ou hide)
+    const { response } = req.params;
+
+    // Validation de la valeur du paramètre
+    if (!["publish", "hide"].includes(response)) {
+      return res.status(400).json({
+        message:
+          "Paramètre invalide. Utilisez 'publish' pour publier ou 'hide' pour masquer les soutenances.",
+      });
+    }
+
+    // Détermination de l'état en fonction du paramètre
+    const isPublished = response === "publish";
+
+    // Mise à jour de toutes les soutenances
+    const result = await soutenancePfaModel.updateMany(
+      {}, // Aucune condition : toutes les soutenances
+      { isPublished }, // Mise à jour de l'état de publication
+      { new: true }
+    );
+
+    // Vérification si des soutenances existent
+    if (result.modifiedCount === 0) {
+      return res.status(404).json({
+        message: "Aucune soutenance trouvée à publier ou masquer.",
+      });
+    }
+
+    // Retourner une réponse en fonction de l'action
+    return res.status(200).json({
+      message: isPublished
+        ? "Toutes les soutenances ont été publiées avec succès."
+        : "Toutes les soutenances ont été masquées avec succès.",
+      result,
+    });
+  } catch (error) {
+    console.error(
+      "Erreur lors de la publication/masquage des soutenances :",
+      error.message
+    );
+    return res.status(500).json({
+      message: `Erreur serveur : ${error.message}`,
+    });
+  }
+};
+
+export const sendPlanningSoutenances = async (req, res) => {
+  try {
+    const { typeEnvoi } = req.body; // "first" ou "modified"
+    if (!["first", "modified"].includes(typeEnvoi)) {
+      return res.status(400).json({
+        message: "Type d'envoi invalide. Utilisez 'first' ou 'modified'.",
+      });
+    }
+
+    // Récupérer toutes les soutenances
+    const soutenances = await soutenancePfaModel
+      .find({}) // Rechercher toutes les soutenances
+      .populate(
+        "etudiants enseignant rapporteur",
+        "adresseEmail nom prenom _id"
+      );
+
+    if (!soutenances.length) {
+      return res.status(400).json({
+        message: "Aucune soutenance trouvée dans la base de données.",
+      });
+    }
+
+    // Construire la liste des destinataires
+    const emails = new Set(); // Utilisation d'un Set pour éviter les doublons
+
+    soutenances.forEach((soutenance) => {
+      if (soutenance.etudiants) {
+        soutenance.etudiants.forEach((etudiant) =>
+          emails.add(etudiant.adresseEmail)
+        );
+      }
+      if (soutenance.enseignant) {
+        emails.add(soutenance.enseignant.adresseEmail);
+      }
+      if (soutenance.rapporteur) {
+        emails.add(soutenance.rapporteur.adresseEmail);
+      }
+    });
+
+    if (!emails.size) {
+      return res
+        .status(200)
+        .json({ message: "Aucun email à envoyer pour les soutenances." });
+    }
+
+    // Configurer le transporteur SMTP
+    const smtpTransport = nodemailer.createTransport({
+      host: process.env.HOST, // Défini dans votre .env
+      port: process.env.PORT_SSL, // Port SSL
+      secure: true, // Utilisation de SSL
+      auth: {
+        user: process.env.MAILER_EMAIL_ID, // Email pour l'authentification
+        pass: process.env.MAILER_PASSWORD, // Mot de passe d'application
+      },
+    });
+
+    // Vérifier la configuration SMTP avant l'envoi
+    await smtpTransport.verify();
+
+    // Contenu des emails selon le type d'envoi
+    const emailSubject =
+      typeEnvoi === "first"
+        ? "Planning des soutenances de PFAs"
+        : "Mise à jour du planning des soutenances de PFAs";
+
+    const emailHtml =
+      typeEnvoi === "first"
+        ? `Bonjour,<br/><br/>
+          Nous avons le plaisir de vous informer que le planning des soutenances de PFAs a été publié. <br/>
+          Vous pouvez consulter les détails du planning en suivant le lien ci-dessous :<br/><br/>
+          <a href="${process.env.API_ENDPOINT}/planning-soutenances" target="_blank" style="color: #007bff; text-decoration: none; font-weight: bold;">
+            Accéder au planning des soutenances
+          </a><br/><br/>
+          Cordialement,<br/>
+          L’équipe de coordination des PFAs.`
+        : `Bonjour,<br/><br/>
+          Nous vous informons que le planning des soutenances de PFAs a été mis à jour. <br/>
+          Veuillez consulter les modifications en suivant le lien ci-dessous :<br/><br/>
+          <a href="${process.env.API_ENDPOINT}/planning-soutenances" target="_blank" style="color: #007bff; text-decoration: none; font-weight: bold;">
+            Accéder au planning mis à jour
+          </a><br/><br/>
+          Cordialement,<br/>
+          L’équipe de coordination des PFAs.`;
+
+    // Envoi des emails
+    const mailOptions = {
+      from: process.env.MAILER_EMAIL_ID,
+      to: [...emails], // Conversion du Set en tableau
+      subject: emailSubject,
+      html: emailHtml,
+    };
+
+    await smtpTransport.sendMail(mailOptions);
+
+    // Mettre à jour l'état de chaque soutenance après l'envoi des emails
+    const updateConditions =
+      typeEnvoi === "first"
+        ? { emailSent: true } // Ajouter emailSent: true pour le premier envoi
+        : { isSecondSend: true }; // Mettre isSecondSend à true pour un envoi modifié
+
+    // Mettre à jour l'état des soutenances dans la base de données
+    await soutenancePfaModel.updateMany({}, { $set: updateConditions });
+
+    return res.status(200).json({
+      success: true,
+      message: `Emails envoyés avec succès pour le planning des soutenances (${
+        typeEnvoi === "first" ? "première publication" : "mise à jour"
+      }).`,
+    });
+  } catch (error) {
+    console.error("Erreur :", error.message);
+    return res.status(500).json({
+      success: false,
+      message: "Une erreur s'est produite lors de l'envoi des emails.",
+
       error: error.message,
     });
   }
@@ -1997,6 +2500,56 @@ export const fetchAssignedPfa = async (req, res) => {
         .json({ model: sujetsPfa, message: " Les sujets pfas publiés" });
     }
   } catch (error) {
+    console.error("Erreur :", error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+export const fetchPlanningSoutenances = async (req, res) => {
+  try {
+    const { enseignantId, etudiantId } = req.query;
+
+    // Vérifier si des critères de filtrage sont fournis
+    if (!enseignantId && !etudiantId) {
+      return res.status(400).json({
+        message: "Veuillez spécifier un filtre : enseignantId ou etudiantId.",
+      });
+    }
+
+    // Construire le filtre en fonction des paramètres de requête
+    const filtre = {};
+
+    if (enseignantId) {
+      // Filtrer les soutenances où l'enseignant est soit encadrant, soit rapporteur
+      filtre.$or = [{ enseignant: enseignantId }, { rapporteur: enseignantId }];
+    }
+
+    if (etudiantId) {
+      // Ajouter un filtre pour les étudiants
+      filtre.etudiants = etudiantId;
+    }
+
+    // Récupérer les plannings des soutenances avec les filtres
+    const plannings = await soutenancePfaModel
+      .find(filtre)
+      .populate("enseignant rapporteur etudiants", "nom prenom _id")
+      .populate("pfa", "titreSujet")
+      .select("date_soutenance heure_soutenance salle");
+
+    // Vérifier s'il y a des soutenances correspondant aux critères
+    if (plannings.length === 0) {
+      return res.status(404).json({
+        message: "Aucune soutenance trouvée pour les critères spécifiés.",
+      });
+    }
+
+    // Retourner les plannings trouvés
+    res.status(200).json({
+      model: plannings,
+      message: "Plannings des soutenances récupérés avec succès.",
+    });
+  } catch (error) {
+    // Gestion des erreurs
+
     res.status(500).json({
       message: error.message,
     });

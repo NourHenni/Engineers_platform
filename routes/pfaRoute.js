@@ -23,6 +23,11 @@ import {
   sendListePfaAffected,
   fetchAssignedPfa,
   fetchMyPfa,
+  ajouterSoutenance,
+  modifierSoutenance,
+  publierOuMasquerSoutenances,
+  sendPlanningSoutenances,
+  fetchPlanningSoutenances,
 } from "../controllers/pfaController.js";
 
 import {
@@ -52,6 +57,7 @@ router.post("/publish/pfas/:response", isAdmin, publishAffectedPfas);
 router.post("/list/pfas/send", isAdmin, sendListePfaAffected);
 router.get("/getAssignedPfas", isEtudiant, fetchAssignedPfa);
 router.get("/students/mine", isEtudiant, fetchMyPfa);
+router.post("/open", isAdmin, addPeriod);
 router.get("/open", isAdmin, getPeriodes);
 router.patch("/open", isAdmin, updateDelais);
 router.post("/post", isEnseignant, ajouterSujetPfa);
@@ -60,5 +66,9 @@ router.get("/:id/mine", isEnseignant, getPfaByIdForTeacher);
 router.patch("/:id/mine", isEnseignant, modifyPfaSubject);
 router.delete("/:id", isEnseignant, deletePfa);
 router.get("/", isEtudiant, getPfasByTeacherForStudents);
-
+router.post("/soutenances/", isAdmin, ajouterSoutenance);
+router.patch("/:id/soutenances/", isAdmin, modifierSoutenance);
+router.post("/publish/:response", isAdmin, publierOuMasquerSoutenances);
+router.post("/list/send/soutenances", isAdmin, sendPlanningSoutenances);
+router.get("/pfa", isAdmin, fetchPlanningSoutenances);
 export default router;

@@ -4,67 +4,67 @@ const userSchema = new mongoose.Schema(
   {
     nom: {
       type: String,
-      required: true,
+      required: false,
     },
     prenom: {
       type: String,
-      required: true,
+      required: false,
     },
     cin: {
       type: Number,
-      required: true,
-      unique: true,
+      required: false,
+      unique: false,
     },
     genre: {
       type: String,
       enum: ["M", "F"],
-      required: true,
+      required: false,
     },
     dateDeNaissance: {
       type: Date, // Using Date type for storing dates
-      required: true, // Assuming it is mandatory
+      required: false, // Assuming it is mandatory
     },
     gouvernorat: {
       type: String,
-      required: true,
+      required: false,
     },
     addresse: {
       type: String,
-      required: true,
+      required: false,
     },
     ville: {
       type: String,
-      required: true,
+      required: false,
     },
     code_postal: {
       type: Number,
-      required: true,
+      required: false,
     },
     nationalite: {
       type: String,
-      required: true,
+      required: false,
     },
     telephone: {
       type: Number,
-      required: true,
+      required: false,
     },
     annee_entree_isamm: {
       type: Number,
-      required: true,
+      required: false,
     },
     adresseEmail: {
       type: String,
-      required: true,
-      unique: true,
+      required: false,
+      unique: false,
     },
     password: {
       type: String,
-      required: true,
+      required: false,
     },
     role: {
       type: String,
       enum: ["etudiant", "enseignant", "admin"],
-      required: true,
+      required: false,
     },
 
     isFirstSendPfa: { type: Boolean, default: false },
