@@ -1357,7 +1357,7 @@ export const ajouterSoutenance = async (req, res) => {
 
     const soutenancesCrees = [];
     const dateInitiale = moment().add(7, "days"); // Soutenances prévues dans une semaine
-    const heureDebutJournee = 9 * 60; // 09:00 en minutes
+    const heureDebutJournee = 8 * 60; // 09:00 en minutes
     const dureeSoutenance = 30; // 30 minutes par soutenance
 
     let dateSoutenance = moment(dateInitiale);
@@ -1384,7 +1384,7 @@ export const ajouterSoutenance = async (req, res) => {
 
         let creationReussie = false;
         while (!creationReussie) {
-          if (soutenancesMemeJour.length >= 2) {
+          if (soutenancesMemeJour.length >= 6) {
             dateSoutenance.add(1, "days");
             heureActuelle = heureDebutJournee;
             soutenancesMemeJour = [];
@@ -1397,7 +1397,7 @@ export const ajouterSoutenance = async (req, res) => {
 
           const heureFin = moment(heureDebut).add(dureeSoutenance, "minutes");
 
-          if (heureFin.hour() >= 17) {
+          if (heureFin.hour() >= 16) {
             dateSoutenance.add(1, "days");
             heureActuelle = heureDebutJournee;
             soutenancesMemeJour = [];
@@ -1619,7 +1619,7 @@ export const modifierSoutenance = async (req, res) => {
       _id: { $ne: id },
     });
 
-    if (soutenancesMemeJour.length >= 2) {
+    if (soutenancesMemeJour.length >= 6) {
       return res.status(400).json({
         message: "Nombre maximal de soutenances atteint pour ce jour.",
       });
@@ -1838,10 +1838,14 @@ export const fetchPlanningSoutenances = async (req, res) => {
 
     // Construire le filtre en fonction des paramètres de requête
     const filtre = {};
+
     if (enseignantId) {
-      filtre.enseignant = enseignantId;
+      // Filtrer les soutenances où l'enseignant est soit encadrant, soit rapporteur
+      filtre.$or = [{ enseignant: enseignantId }, { rapporteur: enseignantId }];
     }
+
     if (etudiantId) {
+      // Ajouter un filtre pour les étudiants
       filtre.etudiants = etudiantId;
     }
 
