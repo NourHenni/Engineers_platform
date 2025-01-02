@@ -303,7 +303,7 @@ export const postInternship = async (req, res) => {
         });
       }
 
-      const end_date = moment(activePeriod.Date_Fin_depot);
+     const end_date = moment(activePeriod.Date_Fin_depot);
       if (currentDate.isAfter(end_date)) {
         newStage.statutDepot = "Depose avec retard";
 
@@ -375,6 +375,7 @@ export const getInternshipsByType = async (req, res) => {
         natureSujet: stage.natureSujet,
         statutSujet: stage.statutSujet,
         statutDepot: stage.statutDepot,
+        raison: stage.raisonInvalidation,
         fichiers: {
           rapport: stage.rapport,
           attestation: stage.attestation,
@@ -444,6 +445,7 @@ export const getStageDetails = async (req, res) => {
         natureSujet: stage.natureSujet,
         statutSujet: stage.statutSujet,
         statutDepot: stage.statutDepot,
+        raison: stage.raisonInvalidation,
         fichiers: {
           rapport: stage.rapport,
           attestation: stage.attestation,
@@ -902,8 +904,18 @@ export const getAssignedStages = async (req, res) => {
     // Formater les résultats pour inclure les détails nécessaires
     const formattedStages = stages.map((stage) => ({
       titreSujet: stage.titreSujet,
-      statutDepot: stage.statutDepot,
-      documents: stage.documents,
+      nomEntreprise: stage.nomEntreprise,
+      description: stage.description,
+      niveau: stage.niveau,
+      anneeStage: stage.anneeStage,
+      natureSujet: stage.natureSujet,
+      statutSujet: stage.statutSujet,
+      raison: stage.raisonInvalidation,
+      fichiers: {
+        rapport: stage.rapport,
+        attestation: stage.attestation,
+        ficheEvaluation: stage.ficheEvaluation,
+      },
       etudiant: {
         nom: stage.etudiant?.nom || "Non disponible",
         email: stage.etudiant?.adresseEmail || "Non disponible",
@@ -929,37 +941,69 @@ export const getAssignedStages = async (req, res) => {
   }
 };
 
+
+
+   
+
+    
+
 export const planifierSoutenance = async (req, res) => {
+  //console.log("Utilisateur connecté :", req.user);
   const { type, id } = req.params;
   const { horaire, jour, lien } = req.body;
 
   try {
-    // Trouver le stage
+    // Trouver le stage correspondant
     const stage = await StageEte.findById(id);
+
     if (!stage) {
-      return res.status(404).json({ message: "Stage non trouvé" });
+      return res.status(404).json({ message: "Stage non trouvé." });
+    }
+    //console.log("Stage récupéré :", stage);
+
+    // Vérifier que le type correspond au niveau du stage
+    if (stage.niveau !== type) {
+      return res.status(400).json({
+        success: false,
+        message: `Le niveau du stage (${stage.niveau}) ne correspond pas au type spécifié (${type}).`,
+      });
     }
 
-    // Créer une nouvelle soutenance
-    const soutenance = new SoutenanceStageEte({
-      horaire,
-      jour,
-      lien,
-    });
+  // Vérifier que le sujet est affecté à un enseignant
+   if (!stage.enseignant) {
+      return res.status(400).json({
+        success: false,
+        message: "Le sujet n'est pas encore affecté à un enseignant.",
+      });
+    }
+    
+    // Vérifier que l'enseignant connecté est celui affecté au stage
+    if (stage.enseignant._id.toString() !== req.user.userId.toString()) {
+      return res.status(403).json({
+        success: false,
+        message: "Accès refusé : Vous n'êtes pas l'enseignant affecté à ce sujet.",
+      });
+    }
 
-    console.log(soutenance);
+
+    // Créer une nouvelle soutenance
+    const soutenance = new SoutenanceStageEte({ horaire, jour, lien });
+
     // Associer la soutenance au stage
     stage.soutenance = soutenance._id;
-    await stage.save();
-    await soutenance.save();
+
+    // Sauvegarder les données
+    await Promise.all([stage.save(), soutenance.save()]);
 
     // Récupérer l'email de l'étudiant
     const etudiant = await User.findById(stage.etudiant);
+    if (!etudiant) {
+      return res.status(404).json({ message: "Étudiant non trouvé." });
+    }
+
     const emailEtudiant = etudiant.adresseEmail;
 
-    console.log(etudiant);
-
-    // Envoyer l'email
+    // Configurer le transporteur pour l'email
     const transporter = nodemailer.createTransport({
       host: process.env.HOST,
       port: process.env.PORT_SSL,
@@ -970,30 +1014,255 @@ export const planifierSoutenance = async (req, res) => {
         pass: process.env.MAILER_PASSWORD,
       },
       tls: {
-        rejectUnauthorized: false, // Disable strict validation
+        rejectUnauthorized: false, // Désactiver la validation stricte
+      },
+    });
+
+    // Définir les options de l'email
+    const mailOptions = {
+      from: process.env.MAILER_EMAIL_ID,
+      to: emailEtudiant,
+      subject: "Détails de votre soutenance",
+      text: `Votre soutenance est planifiée pour le ${jour} à ${horaire}. Le lien de la réunion est : ${lien}.`,
+    };
+
+    // Envoyer l'email
+    transporter.sendMail(mailOptions, (error, info) => {
+      if (error) {
+        console.error("Erreur lors de l'envoi de l'email : ", error);
+      } else {
+        console.log("Email envoyé : " + info.response);
+      }
+    });
+
+    // Répondre avec succès
+    res.json({ message: "Soutenance planifiée avec succès." });
+  } catch (error) {
+    console.error("Erreur :", error);
+    res.status(500).json({
+      error: "Erreur lors de la planification de la soutenance.",
+    });
+  }
+};
+
+
+export const modifierSoutenance = async (req, res) => {
+  const { id } = req.params; // ID de la soutenance à modifier
+  const { horaire, jour, lien } = req.body;
+
+  try {
+    // Trouver la soutenance
+    const soutenance = await SoutenanceStageEte.findById(id);
+    if (!soutenance) {
+      return res.status(404).json({ message: "Soutenance non trouvée" });
+    }
+
+    // Mettre à jour les informations de la soutenance
+    if (horaire) soutenance.horaire = horaire;
+    if (jour) soutenance.jour = jour;
+    if (lien) soutenance.lien = lien;
+
+    await soutenance.save();
+
+    // Trouver le stage associé pour récupérer l'ID de l'étudiant
+    const stage = await StageEte.findOne({ soutenance: soutenance._id });
+    if (!stage) {
+      return res.status(404).json({ message: "Stage associé non trouvé" });
+    }
+
+    // Récupérer l'e-mail de l'étudiant
+    const etudiant = await User.findById(stage.etudiant);
+    if (!etudiant) {
+      return res
+        .status(404)
+        .json({ message: "Étudiant associé à la soutenance non trouvé" });
+    }
+    const emailEtudiant = etudiant.adresseEmail;
+
+    // Envoyer un e-mail pour notifier l'étudiant des changements
+    const transporter = nodemailer.createTransport({
+      host: process.env.HOST,
+      port: process.env.PORT_SSL,
+      secure: true,
+      service: process.env.MAILER_SERVICE_PROVIDER,
+      auth: {
+        user: process.env.MAILER_EMAIL_ID,
+        pass: process.env.MAILER_PASSWORD,
+      },
+      tls: {
+        rejectUnauthorized: false,
       },
     });
 
     const mailOptions = {
       from: process.env.MAILER_EMAIL_ID,
       to: emailEtudiant,
-      subject: "Détails de votre soutenance",
-      text: `Votre soutenance est planifiée pour le ${jour} à ${horaire}. Le lien de la réunion est : ${lien}`,
+      subject: "Mise à jour de votre soutenance",
+      text: `Votre soutenance a été mise à jour avec les détails suivants : 
+      - Date : ${jour} 
+      - Horaire : ${horaire} 
+      - Lien de la réunion : ${lien}`,
     };
 
     transporter.sendMail(mailOptions, (error, info) => {
       if (error) {
-        console.error(error);
+        console.error("Erreur lors de l'envoi de l'email :", error);
       } else {
-        console.log("Email sent: " + info.response);
+        console.log("Email envoyé : " + info.response);
       }
     });
 
-    res.json({ message: "Soutenance planifiée avec succès" });
+    res.json({ message: "Soutenance modifiée avec succès" });
   } catch (error) {
-    console.error(error);
+    console.error("Erreur lors de la modification de la soutenance :", error);
     res
       .status(500)
-      .json({ error: "Erreur lors de la planification de la soutenance" });
+      .json({ error: "Erreur lors de la modification de la soutenance" });
   }
 };
+
+
+export const consulterAffectationByType = async (req, res) => {
+  try {
+    const { type } = req.params; // Récupérer le niveau depuis l'URL
+    const userId = req.auth.userId; // Récupérer l'ID de l'étudiant connecté depuis le token
+
+    // Vérifier que le type est valide
+    if (!["premiereannee", "deuxiemeannee"].includes(type)) {
+      return res.status(400).json({
+        success: false,
+        message: "Type invalide. Utilisez 'premiereannee' ou 'deuxiemeannee'.",
+      });
+    }
+
+    // Récupérer le stage correspondant à l'étudiant connecté et au niveau spécifié
+    const stage = await StageEte.findOne({ etudiant: userId, niveau: type })
+      .populate("enseignant", "nom prenom adresseEmail") // Récupérer les infos de l'enseignant
+      .populate("soutenance"); // Récupérer les détails de la soutenance
+
+    // Si aucun stage n'est trouvé
+    if (!stage) {
+      return res.status(404).json({
+        success: false,
+        message: `Aucun stage trouvé pour le niveau '${type}' associé à cet étudiant.`,
+      });
+    }
+
+    // Vérifier si le stage appartient bien à l'étudiant connecté
+    if (stage.etudiant.toString() !== userId.toString()) {
+      return res.status(403).json({
+        success: false,
+        message: "Accès refusé : ce stage ne vous appartient pas.",
+      });
+    }
+
+    // Préparer la réponse
+    const response = {
+      success: true,
+      stage: {
+        titreSujet: stage.titreSujet,
+        nomEntreprise: stage.nomEntreprise,
+        description: stage.description,
+        niveau: stage.niveau,
+        anneeStage: stage.anneeStage,
+        natureSujet: stage.natureSujet,
+        statutSujet: stage.statutSujet,
+        raison: stage.raisonInvalidation
+      },
+      enseignant: stage.enseignant
+        ? {
+            nom: stage.enseignant.nom,
+            prenom: stage.enseignant.prenom,
+            adresseEmail: stage.enseignant.adresseEmail,
+          }
+        : null, // Si aucun enseignant n'est affecté
+      soutenance: stage.soutenance
+        ? {
+            jour: stage.soutenance.jour,
+            horaire: stage.soutenance.horaire,
+            lien: stage.soutenance.lien,
+          }
+        : null, // Si aucune soutenance n'est planifiée
+    };
+
+    return res.status(200).json(response);
+  } catch (error) {
+    console.error("Erreur lors de la récupération du stage :", error.message);
+    return res.status(500).json({
+      success: false,
+      message: "Erreur lors de la récupération du stage.",
+      error: error.message,
+    });
+  }
+};
+
+
+export const validerSujet = async (req, res) => {
+  const { type, id } = req.params; // Type (premiereannee, deuxiemeannee) et ID du stage
+  const { statutSujet, raison } = req.body; // Statut (Valide/Non valide) et raison (si Non valide)
+
+  try {
+    // Vérifier l'existence du stage
+    const stage = await StageEte.findById(id);
+    if (!stage) {
+      return res.status(404).json({
+        success: false,
+        message: "Stage non trouvé.",
+      });
+    }
+
+    // Vérifier que le niveau correspond au type passé dans l'URL
+    if (stage.niveau !== type) {
+      return res.status(400).json({
+        success: false,
+        message: "Ce stage ne correspond pas au niveau spécifié.",
+      });
+    }
+
+    // Vérifier que l'enseignant connecté est bien celui affecté au stage
+    if (!stage.enseignant || stage.enseignant._id.toString() !== req.user.userId.toString()) {
+      return res.status(403).json({
+        success: false,
+        message: "Accès refusé : Vous n'êtes pas l'enseignant affecté à ce sujet.",
+      });
+    }
+
+    // Valider ou invalider le sujet
+    if (statutSujet === "Non valide") {
+      // Si le statut est "Non valide", une raison doit être fournie
+      if (!raison || raison.trim() === "") {
+        return res.status(400).json({
+          success: false,
+          message: "Veuillez fournir une raison pour invalider le sujet.",
+        });
+      }
+      stage.statutSujet = "Non valide";
+      stage.raisonInvalidation = raison; // Ajouter un champ dynamique pour la raison
+    } else if (statutSujet === "Valide") {
+      stage.statutSujet = "Valide";
+      stage.raisonInvalidation = undefined; // Supprimer la raison s'il y en avait une
+    } else {
+      return res.status(400).json({
+        success: false,
+        message: "Statut invalide : choisissez entre 'Valide' ou 'Non valide'.",
+      });
+    }
+
+    // Sauvegarder les modifications
+    await stage.save();
+
+    res.status(200).json({
+      success: true,
+      message: "Le statut du sujet a été mis à jour avec succès.",
+      stage,
+    });
+  } catch (error) {
+    console.error("Erreur lors de la mise à jour du sujet :", error);
+    res.status(500).json({
+      success: false,
+      message: "Erreur interne lors de la mise à jour du sujet.",
+      error: error.message,
+    });
+  }
+};
+

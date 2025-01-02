@@ -31,10 +31,7 @@ const stageEteSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
-    /*raison: {
-      type: String,
-      required: true,
-    },*/
+  
     natureSujet: {
       type: String,
       required: true,
@@ -44,6 +41,11 @@ const stageEteSchema = new mongoose.Schema(
       enum: ["Valide", "Non valide"],
       default: "Non valide",
     },
+    raisonInvalidation: {
+      type: String,
+      default: null, // Champ facultatif pour la raison d'invalidation
+    },
+    
     statutDepot: {
       type: String,
       enum: ["Depose", "Non depose", "Depose avec retard"],
