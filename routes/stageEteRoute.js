@@ -1,8 +1,5 @@
 import express from "express";
-import {
-  getAllPeriods,
-  postInternship,
-} from "../controllers/stageEteController.js";
+import { postInternship} from "../controllers/stageEteController.js";
 import { getInternshipsByType } from "../controllers/stageEteController.js";
 import { authMiddleware } from "../middellwares/authMiddellware.js";
 import {
@@ -10,6 +7,7 @@ import {
   isAdmin,
   isEnseignant,
   isAdminOrEnseignant,
+  isStillStudent,
 } from "../middellwares/roleMiddellware.js";
 import { upload } from "../middellwares/uploadMiddellware.js";
 import { getStageDetails } from "../controllers/stageEteController.js";
@@ -20,18 +18,26 @@ import { publishOrHidePlanning } from "../controllers/stageEteController.js";
 import { sendPlanning } from "../controllers/stageEteController.js";
 import { getAssignedStages } from "../controllers/stageEteController.js";
 import { planifierSoutenance } from "../controllers/stageEteController.js";
+import { modifierSoutenance } from "../controllers/stageEteController.js";
+import { consulterAffectationByType } from "../controllers/stageEteController.js";
+import { validerSujet } from "../controllers/stageEteController.js";
 
 import { addPeriod } from "../controllers/stageEteController.js";
-//import { getAllPeriods } from "../controllers/stageEteController.js";
+import { getAllPeriods } from "../controllers/stageEteController.js";
 import { updatePeriod } from "../controllers/stageEteController.js";
 
 const router = express.Router();
 
+router.post("/:niveau/open", authMiddleware, isAdmin, addPeriod);
+router.get("/:niveau/open", authMiddleware, isAdmin, getAllPeriods);
+router.patch("/:niveau/open", authMiddleware, isAdmin, updatePeriod);
+
 // Route : POST /internship/:type/post
 router.post(
-  "/internship/:type/post",
+  "/:type/post",
   authMiddleware,
   isEtudiant,
+ 
   // upload.array("files", 3),
   upload.fields([
     { name: "rapport", maxCount: 1 },
@@ -40,16 +46,11 @@ router.post(
   ]),
   postInternship
 );
-router.get("/internship/:type", authMiddleware, isAdmin, getInternshipsByType);
+router.get("/:type", authMiddleware, isAdmin, getInternshipsByType);
 router.get("/teachers", authMiddleware, isAdmin, getEnseignants);
-router.get(
-  "/internship/:type/:id",
-  authMiddleware,
-  isAdminOrEnseignant,
-  getStageDetails
-);
+router.get("/:type/:id", authMiddleware, isAdminOrEnseignant, getStageDetails);
 router.post(
-  "/internship/:type/planning/assign",
+  "/:type/planning/assign",
   authMiddleware,
   isAdmin,
   assignTeachersToStages
@@ -68,16 +69,15 @@ router.post(
 );
 // Endpoint pour envoyer le planning par email
 router.post("/:type/planning/send", authMiddleware, isAdmin, sendPlanning);
-
-router.post(
-  "/internship/:type/:id",
+router.get(
+  "/:type/assign/tome",
   authMiddleware,
   isEnseignant,
-  planifierSoutenance
+  getAssignedStages
 );
-router.get("/:type/sing", authMiddleware, isEnseignant, getAssignedStages);
-router.post("/:type/open", authMiddleware, isAdmin, addPeriod);
-router.get("/:type/open", authMiddleware, isAdmin, getAllPeriods);
-router.patch("/internship/:type/open", updatePeriod);
+router.post("/:type/:id", authMiddleware, isEnseignant, planifierSoutenance);
+router.patch("/:type/:id", authMiddleware, isEnseignant, modifierSoutenance);
+router.get("/:type/me", authMiddleware, isEtudiant,  consulterAffectationByType);
+router.patch("/:type/:id", authMiddleware, isEnseignant, validerSujet);
 
 export default router;

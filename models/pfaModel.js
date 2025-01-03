@@ -11,22 +11,14 @@ const pfaSchema = new mongoose.Schema(
       type: String,
     },
 
-    technologies: { type: [String], required: false },
+    technologies: { type: [String], required: true },
 
-    description: { type: String, required: false },
+    description: { type: String, required: true },
 
-    estBinome: { type: Boolean, required: false },
+    estBinome: { type: Boolean, required: true },
 
     choices: [
       {
-        etudiantId: {
-          type: mongoose.Schema.Types.ObjectId,
-          ref: "User",
-        },
-        binomeId: {
-          type: mongoose.Schema.Types.ObjectId,
-          ref: "User",
-        },
         priority: {
           type: Number,
           validate: {
@@ -35,15 +27,27 @@ const pfaSchema = new mongoose.Schema(
           },
           required: true,
         },
-        acceptedPfa: { type: String },
+        etudiantsIds: [mongoose.Schema.Types.ObjectId], // Liste des étudiants ayant fait ce choix
+        binomeIds: [
+          {
+            etudiantId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+            binomeId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+            _id: false,
+          },
+        ], // Liste des binômes pour ce choix
+        acceptedPfa: {
+          // dans le cas ou un étudiant a eu une acceptation on va enregistrer id de l'etudiant
+          // ou les deux binomes dans le cas d'un sujet en binome et le code de sujet dont il a eu une acceptation
 
+          etudiantsAcceptedIds: [mongoose.Schema.Types.ObjectId], //
+        },
         _id: false,
       },
     ],
 
     etatDepot: {
       type: String,
-      enum: ["rejected", "not rejected"],
+      enum: ["rejected", "not rejected", "published"],
 
       required: false,
 
@@ -56,7 +60,7 @@ const pfaSchema = new mongoose.Schema(
       default: "not affected",
     },
     status: { type: String, enum: ["valid", "not valid"], required: false },
-
+    annee: { type: Number, required: true },
     raison: {
       type: String,
       validate: {
@@ -74,11 +78,14 @@ const pfaSchema = new mongoose.Schema(
       ref: "User", // Référence au modèle `User`
       required: true,
     },
-    etudiant: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User", // Référence au modèle `User` pour l'étudiant
-      required: false, // Pas obligatoire, car tous les sujets peuvent ne pas avoir un étudiant assigné
-    },
+
+    etudiants: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User", // Référence au modèle `User` pour l'étudiant
+        required: false, // Pas obligatoire, car tous les sujets peuvent ne pas avoir un étudiant assigné
+      },
+    ],
   },
   {
     timestamps: true,

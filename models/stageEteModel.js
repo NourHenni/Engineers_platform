@@ -31,10 +31,7 @@ const stageEteSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
-    /*raison: {
-      type: String,
-      required: true,
-    },*/
+  
     natureSujet: {
       type: String,
       required: true,
@@ -43,40 +40,38 @@ const stageEteSchema = new mongoose.Schema(
       type: String,
       enum: ["Valide", "Non valide"],
       default: "Non valide",
-     
     },
+    raisonInvalidation: {
+      type: String,
+      default: null, // Champ facultatif pour la raison d'invalidation
+    },
+    
     statutDepot: {
       type: String,
-      enum: ["Depose", "Non depose"],
+      enum: ["Depose", "Non depose", "Depose avec retard"],
       default: "Non depose",
-      
     },
 
     soutenance: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "SoutenanceStageEte",
-      },
-      publie: { type: Boolean, default: false }, // Champ pour gérer la publication
-      etudiant: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "User", // Référence au modèle User
-        
-      },
-      enseignant: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "User", // Référence au modèle User
-      },
-      
-        rapport: { type: String, required: true },
-        attestation: { type: String, required: true },
-        ficheEvaluation: { type: String, required: true },
-      
-      
-      
-      
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "SoutenanceStageEte",
+    },
+    publie: { type: Boolean, default: false }, // Champ pour gérer la publication
+    etudiant: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User", // Référence au modèle User
+    },
+    enseignant: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User", // Référence au modèle User
+    },
+
+    rapport: { type: String, required: true },
+    attestation: { type: String, required: true },
+    ficheEvaluation: { type: String, required: true },
   },
   {
-    timestamps: true, 
+    timestamps: true,
   }
 );
 

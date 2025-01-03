@@ -6,6 +6,7 @@ const periodeSchema = new mongoose.Schema(
     Nom: { type: String, required: true }, // Nom de la période
     Date_Debut_depot: {
       type: Date,
+
       validate: {
         validator: function (value) {
           return value != null; // Vérifie que la date n'est pas nulle si fournie
@@ -18,7 +19,7 @@ const periodeSchema = new mongoose.Schema(
       validate: {
         validator: function (value) {
           // Vérifie que la date de fin est après la date de début si elle est fournie
-          return !value || value > this.Date_Debut_depot;
+          return value > this.Date_Debut_depot;
         },
         message: "La date de fin doit être après la date de début",
       },
@@ -27,6 +28,10 @@ const periodeSchema = new mongoose.Schema(
       type: String,
       enum: ["Summer Internship", "PFA Project"],
       required: true,
+    },
+    niveau: {
+      type: String,
+      enum: ["premiereannee", "deuxiemeannee"],
     },
     PeriodState: {
       type: String,
@@ -43,7 +48,7 @@ const periodeSchema = new mongoose.Schema(
       validate: {
         validator: function (value) {
           // Vérifier que la date de fin est après la date de début
-          return value > this.Date_Debut_choix;
+          return !value || value > this.Date_Debut_choix;
         },
         message: "La date de fin doit être après la date de début",
       },
