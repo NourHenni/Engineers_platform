@@ -1,20 +1,23 @@
 import express from "express";
 import {
   createMatiere,
+  deleteMatiere,
+  getMatiereDetail,
   getMatieres,
   publishOrHideMatieres,
   updateAvancement,
+  updateMatiere,
   proposeModification,
   validateModification,
   addEvaluation,
   getEvaluations,
   EnvoiEmailEvaluation,
 } from "../controllers/matiereController.js";
+
 import { authMiddleware } from "../middellwares/authMiddellware.js";
 import {
   isAdmin,
   isEnseignant,
-  isEnseignantOrEtudiant,
   isEtudiant,
   isAdminOrEnseignant,
 } from "../middellwares/roleMiddellware.js";
@@ -23,13 +26,8 @@ const router = express.Router();
 // Routes CRUD
 
 router.post("/", authMiddleware, isAdmin, createMatiere);
-router.get("/getmatieres", authMiddleware, isAdmin, getMatieres);
-router.get(
-  "/getmatieres/:id",
-  authMiddleware,
-  isEnseignantOrEtudiant,
-  getMatieres
-);
+router.get("/", authMiddleware, getMatieres);
+router.get("/:id", authMiddleware, getMatiereDetail);
 router.post(
   "/publish/:response",
   authMiddleware,
@@ -37,6 +35,8 @@ router.post(
   publishOrHideMatieres
 );
 router.patch("/:id/avancement", authMiddleware, isEnseignant, updateAvancement);
+router.patch("/:id", authMiddleware, isAdmin, updateMatiere);
+router.delete("/:id", authMiddleware, isAdmin, deleteMatiere);
 router.patch(
   "/:id/proposition",
   authMiddleware,
@@ -52,4 +52,5 @@ router.get(
   isAdminOrEnseignant,
   getEvaluations
 );
+
 export default router;
