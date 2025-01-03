@@ -239,6 +239,7 @@ export const ajouterSujetPfa = async (req, res) => {
       titreSujet,
       description,
       technologies,
+      annee: new Date().getFullYear(),
       estBinome,
       enseignant: req.auth.userId,
       etudiants, // Utilisation du tableau etudiants
@@ -261,6 +262,39 @@ export const ajouterSujetPfa = async (req, res) => {
     } else {
       throw new Error("Erreur inconnue lors de la récupération du sujet.");
     }
+  } catch (error) {
+    console.error("Erreur détectée :", error.message);
+    return res
+      .status(500)
+      .json({ message: `Erreur serveur: ${error.message} ` });
+  }
+};
+
+export const getPfaByAnnee = async (req, res) => {
+  try {
+    const { annee } = req.params;
+
+    if (!annee || isNaN(annee)) {
+      return res.status(400).json({
+        message: "L'année fournie est invalide.",
+      });
+    }
+
+    const pfas = await pfaModel
+      .find({ annee: parseInt(annee) })
+      .populate("enseignant", "nom prenom email")
+      .populate("etudiants", "nom prenom email");
+
+    if (pfas.length === 0) {
+      return res.status(404).json({
+        message: `Aucun sujet PFA trouvé pour l'année ${annee}.`,
+      });
+    }
+
+    return res.status(200).json({
+      message: `Sujets PFA pour l'année ${annee} récupérés avec succès.`,
+      pfas,
+    });
   } catch (error) {
     console.error("Erreur détectée :", error.message);
     return res

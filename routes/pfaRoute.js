@@ -28,6 +28,7 @@ import {
   publierOuMasquerSoutenances,
   sendPlanningSoutenances,
   fetchPlanningSoutenances,
+  getPfaByAnnee,
 } from "../controllers/pfaController.js";
 
 import {
@@ -40,6 +41,7 @@ import {
 const router = express.Router();
 
 router.get("/getPfas", isAdmin, fetchPfas);
+router.get("/getPfaAnnee/:annee", isAdmin, getPfaByAnnee);
 router.get("/getPfas/:idPFA", isAdminOrStudent, fecthPfaById);
 router.patch("/ChangeStatePFA/:idPFA", isAdmin, changeState);
 router.patch("/publish/:response", isAdmin, publishPfas);

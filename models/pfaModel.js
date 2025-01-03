@@ -60,7 +60,7 @@ const pfaSchema = new mongoose.Schema(
       default: "not affected",
     },
     status: { type: String, enum: ["valid", "not valid"], required: false },
-    annee:{type:Number,required:false},
+    annee: { type: Number, required: true },
     raison: {
       type: String,
       validate: {
