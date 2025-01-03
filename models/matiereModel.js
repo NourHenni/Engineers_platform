@@ -91,20 +91,23 @@ const matiereSchema = mongoose.Schema({
     default: false,
     required: true,
   },
+  archived: { type: Boolean, 
+    default: false },
   competences: [
     {
       type: mongoose.Schema.Types.ObjectId,
       ref: "competences",
-      required: false,
-    },
-  ],
-  enseignant: [
-    {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User", // Référence au modèle User
       required: true,
     },
   ],
+  enseignant: 
+    {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User", // Référence au modèle User
+      default:null
+    },
+  
+  
 });
 
 export default mongoose.model("matieres", matiereSchema);

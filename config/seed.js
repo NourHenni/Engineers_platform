@@ -13,6 +13,7 @@ const defaultUsers = [
     role: "admin",
     dateDeNaissance: "1980-01-01", // Add birthdate for admin
   },
+  
   {
     nom: "Teacher",
     prenom: "User",
