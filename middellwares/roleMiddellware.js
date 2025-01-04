@@ -91,10 +91,12 @@ export const isStillStudent = async (req, res, next) => {
   }
 };
 export const isStudent = (req, res, next) => {
+  console.log("Checking user role in isStudent:", req.auth.role); // Log the role to check it
+
   const userRole = req.auth.role;
 
   if (userRole === "etudiant") {
-    return next();
+    return next(); // Continue to the next middleware or handler
   }
 
   return res.status(403).json({

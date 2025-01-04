@@ -21,7 +21,8 @@ import {
   getCV,
   addCVInfo,
   basculerEntreAnnee,
-  notifyUsersWithDiplome
+  notifyUsersWithDiplome,
+  createAcademicYear
 } from "../controllers/UserController.js";
 import { authMiddleware } from "../middellwares/authMiddellware.js";
 import { isAdmin, isAdminOrEnseignant, isEnseignant, isStudent } from "../middellwares/roleMiddellware.js";
@@ -58,12 +59,13 @@ router.get("/students/:id", authMiddleware, isAdmin, getEtudiantById);
 router.patch("/students/:id", authMiddleware, isAdmin, updateEtudiantById);
 router.patch("/students/:id/password",authMiddleware,isAdmin,updateEtudiantPassword);
 router.delete("/students/:id",authMiddleware,isAdmin,deleteOrArchiveStudentById);
-router.put('/years/student/:id', isAdmin, updateStudentSituation);
-router.patch("/students/me", authMiddleware,isStudent, updateProfile);
-router.get("/student/CV/me", authMiddleware,isStudent, getCV);
+router.patch('/years/student/:id',authMiddleware, isAdmin, updateStudentSituation);
+router.put("/students/me", authMiddleware, isStudent, updateProfile);
+router.get("/student/CV/:id", authMiddleware,isStudent, getCV);
 router.get("/students/:id/CV", authMiddleware,isAdminOrEnseignant, getCV);
 router.patch('/student/CV', authMiddleware,isStudent, addCVInfo);
-router.get('/years/:year', basculerEntreAnnee);
+router.post('/years/',authMiddleware,isAdmin,createAcademicYear)
+router.get('/years/:year',authMiddleware,isAdmin, basculerEntreAnnee);
 router.post('/years/notify',authMiddleware,isAdmin, notifyUsersWithDiplome);
 
 

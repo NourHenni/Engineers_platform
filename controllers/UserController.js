@@ -535,44 +535,82 @@ export const addStudentsFromFile = async (req, res) => {
 export const updateStudentSituation = async (req, res) => {
   try {
     const { id } = req.params;
-    const { nouvelleSituation } = req.body;
+    const { nouvelleSituation, anneeAcademique } = req.body;
 
     // Validate input
-    const validSituations = ["passe", "redouble", "diplômé"];
+    const validSituations = ["passe", "redouble", "diplome"];
     if (!validSituations.includes(nouvelleSituation)) {
       return res.status(400).json({ error: "Invalid situation value" });
     }
 
+    if (!anneeAcademique || !/^\d{4}-\d{4}$/.test(anneeAcademique)) {
+      return res
+        .status(400)
+        .json({ error: "Invalid or missing academic year format (e.g., 2024-2025)" });
+    }
+
     // Find the student
-    const student = await Student.findById(id);
+    const student = await User.findById(id);
     if (!student) {
       return res.status(404).json({ error: "Student not found" });
     }
 
-    // Update the student's situation and niveau
-    student.situation = nouvelleSituation;
+    // Prevent modification if the student is already graduated
+    if (student.situation === "diplome") {
+      return res.status(400).json({ error: "Cannot modify situation for graduated student" });
+    }
 
+    // Update the student's situation
     if (nouvelleSituation === "passe") {
-      // Increment niveau if below the max level
       if (student.niveau < 3) {
         student.niveau += 1;
-      } else {
-        return res
-          .status(400)
-          .json({ error: "Cannot increment niveau beyond 3" });
+        student.situation = "passe";
+      } else if (student.niveau === 3) {
+        // If the student is in the final level and passes, they graduate
+        student.situation = "diplome";
+        // Set the year of graduation to the current year
+        student.annee_sortie_isamm = new Date().getFullYear(); // Update to current year
       }
+    } else {
+      student.situation = nouvelleSituation;
+    }
+
+    // Update academic_statuses for the specified academic year
+    const existingStatusIndex = student.academic_statuses.findIndex(
+      (status) => status.academic_year === anneeAcademique
+    );
+
+    if (existingStatusIndex !== -1) {
+      // If the student is already graduated, don't update the academic status
+      if (student.situation === "diplome") {
+        return res.status(400).json({ error: "Cannot add a new academic status for a graduated student" });
+      }
+      // Update existing entry
+      student.academic_statuses[existingStatusIndex].status = student.situation;
+    } else {
+      // If the student is already graduated, don't add a new academic status
+      if (student.situation === "diplome") {
+        return res.status(400).json({ error: "Cannot add a new academic status for a graduated student" });
+      }
+      // Add new entry
+      student.academic_statuses.push({
+        academic_year: anneeAcademique,
+        status: student.situation,
+      });
     }
 
     await student.save();
 
-    res
-      .status(200)
-      .json({ message: "Situation and niveau updated successfully", student });
+    res.status(200).json({
+      message: "Situation and academic status updated successfully",
+      student,
+    });
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: "Internal server error" });
   }
 };
+
 
 export const createAcademicYear = async (req, res) => {
   try {
@@ -661,21 +699,25 @@ export const getCV = async (req, res) => {
 
 export const addCVInfo = async (req, res) => {
   try {
-    const { newCVInfo } = req.body; // Get the new CV information (string) from the request body
+    const { diplomes, certifications, langues, experiences } = req.body;
 
-    if (!newCVInfo) {
-      return res
-        .status(400)
-        .json({ message: "New CV information is required" });
+    // Vérification si au moins une des informations est fournie
+    if (!diplomes && !certifications && !langues && !experiences) {
+      return res.status(400).json({ message: "At least one CV field is required" });
     }
 
-    const userId = req.auth.userId; // Extract the user ID from the auth middleware
+    const userId = req.auth.userId; // Extraire l'ID de l'utilisateur du middleware d'authentification
 
-    // Find the user and append the new CV info to the existing cvinfos array
+    // Trouver l'utilisateur et mettre à jour les champs spécifiques du CV
     const updatedUser = await User.findByIdAndUpdate(
       userId,
       {
-        $push: { cvinfos: newCVInfo }, // Append new information to cvinfos array
+        $set: {
+          "cvinfos.diplomes": diplomes || [], // Mettre à jour les diplômes (s'il y en a)
+          "cvinfos.certifications": certifications || [], // Mettre à jour les certifications
+          "cvinfos.langues": langues || [], // Mettre à jour les langues
+          "cvinfos.experiences": experiences || [] // Mettre à jour les expériences professionnelles
+        },
       },
       { new: true, runValidators: true }
     );
@@ -685,7 +727,7 @@ export const addCVInfo = async (req, res) => {
     }
 
     res.status(200).json({
-      message: "New CV info added successfully",
+      message: "CV information updated successfully",
       user: updatedUser,
     });
   } catch (error) {
@@ -695,81 +737,116 @@ export const addCVInfo = async (req, res) => {
   }
 };
 
+
 export const basculerEntreAnnee = async (req, res) => {
   try {
-    const { year } = req.params; // Extract the year from the URL parameters
+    const { year } = req.params; // Extraire l'année de la requête
 
-    // Step 1: Get the list of users whose annee_entree_isamm is <= the provided year
+    // Étape 1 : Obtenir la liste des utilisateurs dont annee_entree_isamm est <= l'année fournie
     const users = await User.find({
-      annee_entree_isamm: { $lte: year }, // Find users with annee_entree_isamm <= year
-      role: "etudiant", // Filter only students
+      annee_entree_isamm: { $lte: year },
+      role: "etudiant",
     });
 
-    // Step 2: Get the list of PFAs and StageEtes filtered by the provided year
+    // Étape 2 : Ajouter le statut pour l'année demandée pour chaque étudiant
+    const usersWithStatus = users.map((user) => {
+      // Trouver le statut pour l'année académique spécifiée dans academic_statuses
+      const statusForYear = user.academic_statuses.find((status) => {
+        // Comparer l'année de statut avec l'année donnée (en prenant la première année de la plage)
+        const [startYear] = status.academic_year.split('-');
+        return parseInt(startYear, 10) === parseInt(year, 10); // Comparer avec l'année de début
+      });
+
+      return {
+        ...user.toObject(),
+        statusForYear: statusForYear ? statusForYear.status : "Non défini", // Si pas trouvé, "Non défini"
+      };
+    });
+
+    // Étape 3 : Récupérer la liste des PFAs et StageEtes pour l'année spécifiée
     const pfas = await pfaModel.find({ annee: year });
     const stagesEte = await stageEteModel.find({ anneeStage: year });
 
-    // Step 3: Get all competences
+    // Étape 4 : Récupérer toutes les compétences
     const competences = await Competences.find();
 
-    // Step 4: Get all matieres (you may want to filter by the semester or some other logic)
-    const matieres = await Matiere.find();
+    // Étape 5 : Récupérer toutes les matières (vous pouvez filtrer selon le semestre ou d'autres critères)
+    const matieres = await Matieres.find();
 
-    // Step 5: Send the users, PFAs, StageEtes, Competences, and Matieres for the provided year
+    // Étape 6 : Envoyer les utilisateurs avec leurs statuts, PFAs, StageEtes, Compétences et Matières
     res.status(200).json({
       message: "success",
-      users: users,
+      users: usersWithStatus,
       pfas: pfas,
       stagesEte: stagesEte,
       competences: competences,
       matieres: matieres,
     });
   } catch (error) {
+    console.error(error);
     res.status(500).json({
       message: error.message,
     });
   }
 };
 
+
+
+
+
 export const updateProfile = async (req, res) => {
   try {
-    const { id } = req.params; // Extract the user ID from the URL
-    const { telephone, addresse, adresseEmail } = req.body; // Extract fields from the request body
+    // Use the user ID from the authMiddleware (attached to req.auth)
+    const userId = req.auth.userId;
 
-    // Prepare the update object
-    const updateData = {};
+    const { adresseEmail, addresse, telephone } = req.body;
 
-    // Conditionally add fields to the update object
-    if (telephone) updateData.telephone = telephone;
-    if (addresse) updateData.addresse = addresse;
-    if (adresseEmail) updateData.adresseEmail = adresseEmail;
-
-    // Ensure at least one field is provided
-    if (Object.keys(updateData).length === 0) {
-      return res.status(400).json({ message: "No fields provided to update" });
+    // Validate the email format
+    const emailRegex = /^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,6}$/;
+    if (adresseEmail && !emailRegex.test(adresseEmail)) {
+      return res.status(400).json({ error: "Invalid email format" });
     }
 
-    // Update the user profile
-    const updatedUser = await User.findByIdAndUpdate(id, updateData, {
-      new: true, // Return the updated document
-      runValidators: true, // Run schema validators
-    });
-
-    if (!updatedUser) {
-      return res.status(404).json({ message: "User not found" });
+    // Validate phone number format (optional)
+    if (telephone && !/^\d{8,10}$/.test(telephone)) {
+      return res.status(400).json({ error: "Invalid phone number format" });
     }
+
+    // Find the logged-in user by ID
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    // Update the fields if provided
+    if (adresseEmail) {
+      user.adresseEmail = adresseEmail;
+    }
+    if (addresse) {
+      user.addresse = addresse;
+    }
+    if (telephone) {
+      user.telephone = telephone;
+    }
+
+    // Save the updated user data
+    await user.save();
 
     res.status(200).json({
       message: "Profile updated successfully",
-      user: updatedUser,
+      user,
     });
   } catch (error) {
-    if (error.code === 11000) {
-      return res.status(400).json({ message: "Email address must be unique" });
-    }
-    res.status(500).json({ message: error.message });
+    console.error(error);
+    res.status(500).json({ error: "Internal server error" });
   }
 };
+
+
+
+
+
+
 
 /////////////////////////////////////////////////////////////
 //////////////////////ENSEIGNANT//////////////////////////
@@ -1150,6 +1227,33 @@ export const addTeachersFromFile = async (req, res) => {
     });
   }
 };
+export const notifyUsersWithDiplome = async (req, res) => {
+  try {
+    // Get all users with situation = 'diplome'
+    const users = await User.find({ situation: "diplome" });
+
+    if (users.length === 0) {
+      return res
+        .status(404)
+        .json({ message: "No users found with situation 'diplome'." });
+    }
+
+    // Send email to each user
+    for (let user of users) {
+      await sendEmailold(user.adresseEmail, user.firstName, user.lastName);
+    }
+
+    res
+      .status(200)
+      .json({
+        message:
+          "Emails sent successfully to all users with situation 'diplome'.",
+      });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Error sending email notifications." });
+  }
+};
 ////////////////////////////////////////////////////////////////////
 
 // Create a reusable transporter object using environment variables for configuration
@@ -1182,31 +1286,4 @@ const sendEmailold = async (to, firstName, lastName) => {
   }
 };
 
-// Controller function to send emails to users with situation='diplome'
-export const notifyUsersWithDiplome = async (req, res) => {
-  try {
-    // Get all users with situation = 'diplome'
-    const users = await User.find({ situation: "diplome" });
 
-    if (users.length === 0) {
-      return res
-        .status(404)
-        .json({ message: "No users found with situation 'diplome'." });
-    }
-
-    // Send email to each user
-    for (let user of users) {
-      await sendEmailold(user.email, user.firstName, user.lastName);
-    }
-
-    res
-      .status(200)
-      .json({
-        message:
-          "Emails sent successfully to all users with situation 'diplome'.",
-      });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: "Error sending email notifications." });
-  }
-};

@@ -1,87 +1,86 @@
-import mongoose from "mongoose";
+import mongoose, { Schema } from "mongoose";
 
 const userSchema = new mongoose.Schema(
   {
     nom: {
       type: String,
-      required: false,
+      required: true,
     },
     prenom: {
       type: String,
-      required: false,
+      required: true,
     },
     cin: {
       type: Number,
-      required: false,
-      unique: false,
+      required: true,
+      unique: true,
     },
     genre: {
       type: String,
       enum: ["M", "F"],
-      required: false,
+      required: true,
     },
     dateDeNaissance: {
-      type: Date, // Using Date type for storing dates
-      required: false, // Assuming it is mandatory
+      type: Date,
+      required: true,
     },
     gouvernorat: {
       type: String,
-      required: false,
+      required: true,
     },
     addresse: {
       type: String,
-      required: false,
+      required: true,
     },
     ville: {
       type: String,
-      required: false,
+      required: true,
     },
     code_postal: {
       type: Number,
-      required: false,
+      required: true,
     },
     nationalite: {
       type: String,
-      required: false,
+      required: true,
     },
     telephone: {
       type: Number,
-      required: false,
+      required: true,
     },
     annee_entree_isamm: {
+      type: Number,
+      required: true,
+    }, 
+    annee_sortie_isamm: {
       type: Number,
       required: false,
     },
     adresseEmail: {
       type: String,
-      required: false,
-      unique: false,
+      required: true,
+      unique: true,
     },
     password: {
       type: String,
-      required: false,
+      required: true,
     },
     role: {
       type: String,
       enum: ["etudiant", "enseignant", "admin"],
-      required: false,
+      required: true,
     },
-
     isFirstSendPfa: { type: Boolean, default: false },
     isFirstSendEte: { type: Boolean, default: false },
-    isFirstSendListePfa: { type: Boolean, default: false },
     niveau: { type: Number, enum: [1, 2, 3] },
-
     isGraduated: {
       type: String,
       enum: ["graduated", "not_graduated"],
     },
-
     archivee: {
-      type: Boolean, // Boolean type to indicate true or false
-      default: false, // Default value is set to false
+      type: Boolean,
+      default: false,
     },
-
     matieres: [
       {
         type: mongoose.Schema.Types.ObjectId,
@@ -95,11 +94,49 @@ const userSchema = new mongoose.Schema(
     },
     situation: {
       type: String,
-      enum: ["nouveau", "redoublant", "diplome"],
+      enum: ["passe", "redouble", "diplome"],
+    },
+    cvinfos: {
+      diplomes: { type: [String], default: [] }, // Diplômes (anciens ou nouveaux)
+      certifications: { type: [String], default: [] }, // Certifications
+      langues: { type: [String], default: [] }, // Langues
+      experiences: { type: [String], default: [] }, // Expériences professionnelles
     },
     grade: {
       type: String,
+      required: false,
     },
+    baccalaureat: { type: String, required: false },
+    annee_bac: { type: Number, required: false },
+    moyenne_bac: { type: Number, required: false },
+    mention: { type: String, required: false },
+    universite: { type: String, required: false },
+    etablissement: { type: String, required: false },
+    type_licence: { type: String, required: false },
+    specialite: { type: String, required: false },
+    annee_licence: { type: Number, required: false },
+    est_prepa: { type: Boolean, required: false },
+    stageete: { type: Schema.Types.ObjectId, ref: "StageEte", default: null },
+    pfa: { type: Schema.Types.ObjectId, ref: "Pfa", default: null },
+
+    
+    academic_statuses: [
+      {
+        academic_year: {
+          type: String, // Format attendu: "2023-2024"
+          required: true,
+        },
+        status: {
+          type: String,
+          enum: ["passe", "redouble", "diplome"],
+          required: true,
+        },
+        details: {
+          type: String, // Pour des informations supplémentaires
+          default: "",
+        },
+      },
+    ],
   },
   {
     timestamps: true,
