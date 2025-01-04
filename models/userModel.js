@@ -92,6 +92,7 @@ const userSchema = new mongoose.Schema(
       type: String,
       enum: ["S1", "S2", "S3", "S4", "S5"],
     },
+
     situation: {
       type: String,
       enum: ["passe", "redouble", "diplome"],
