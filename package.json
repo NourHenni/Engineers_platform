@@ -19,7 +19,9 @@
     "express-session": "^1.18.1",
     "joi": "^17.13.3",
     "jsonwebtoken": "^9.0.2",
-    "node-cron": "^3.0.3"
+    "node-cron": "^3.0.3",
+    "swagger-autogen": "^2.23.7",
+    "swagger-ui-express": "^5.0.1"
   },
   "devDependencies": {
     "moment": "^2.30.1",

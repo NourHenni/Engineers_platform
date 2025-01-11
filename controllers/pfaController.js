@@ -628,6 +628,7 @@ export const getPfasByTeacherForStudents = async (req, res) => {
 };
 
 export const fetchPfas = async (req, res) => {
+  // #swagger.tags = ['PFAS']
   try {
     const sujetsPfa = await pfaModel.find();
 
