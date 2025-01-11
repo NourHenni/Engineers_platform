@@ -51,7 +51,7 @@ const userSchema = new mongoose.Schema(
     annee_entree_isamm: {
       type: Number,
       required: true,
-    }, 
+    },
     annee_sortie_isamm: {
       type: Number,
       required: false,
@@ -72,6 +72,7 @@ const userSchema = new mongoose.Schema(
     },
     isFirstSendPfa: { type: Boolean, default: false },
     isFirstSendEte: { type: Boolean, default: false },
+    isFirstSendListePfa: { type: Boolean, default: false },
     niveau: { type: Number, enum: [1, 2, 3] },
     isGraduated: {
       type: String,
@@ -120,7 +121,6 @@ const userSchema = new mongoose.Schema(
     stageete: { type: Schema.Types.ObjectId, ref: "StageEte", default: null },
     pfa: { type: Schema.Types.ObjectId, ref: "Pfa", default: null },
 
-    
     academic_statuses: [
       {
         academic_year: {
