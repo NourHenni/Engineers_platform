@@ -544,9 +544,9 @@ export const updateStudentSituation = async (req, res) => {
     }
 
     if (!anneeAcademique || !/^\d{4}-\d{4}$/.test(anneeAcademique)) {
-      return res
-        .status(400)
-        .json({ error: "Invalid or missing academic year format (e.g., 2024-2025)" });
+      return res.status(400).json({
+        error: "Invalid or missing academic year format (e.g., 2024-2025)",
+      });
     }
 
     // Find the student
@@ -557,7 +557,9 @@ export const updateStudentSituation = async (req, res) => {
 
     // Prevent modification if the student is already graduated
     if (student.situation === "diplome") {
-      return res.status(400).json({ error: "Cannot modify situation for graduated student" });
+      return res
+        .status(400)
+        .json({ error: "Cannot modify situation for graduated student" });
     }
 
     // Update the student's situation
@@ -583,14 +585,18 @@ export const updateStudentSituation = async (req, res) => {
     if (existingStatusIndex !== -1) {
       // If the student is already graduated, don't update the academic status
       if (student.situation === "diplome") {
-        return res.status(400).json({ error: "Cannot add a new academic status for a graduated student" });
+        return res.status(400).json({
+          error: "Cannot add a new academic status for a graduated student",
+        });
       }
       // Update existing entry
       student.academic_statuses[existingStatusIndex].status = student.situation;
     } else {
       // If the student is already graduated, don't add a new academic status
       if (student.situation === "diplome") {
-        return res.status(400).json({ error: "Cannot add a new academic status for a graduated student" });
+        return res.status(400).json({
+          error: "Cannot add a new academic status for a graduated student",
+        });
       }
       // Add new entry
       student.academic_statuses.push({
@@ -610,7 +616,6 @@ export const updateStudentSituation = async (req, res) => {
     res.status(500).json({ error: "Internal server error" });
   }
 };
-
 
 export const createAcademicYear = async (req, res) => {
   try {
@@ -664,7 +669,7 @@ export const getCV = async (req, res) => {
     const userId = req.params.id === "me" ? req.auth.userId : req.params.id;
 
     // Find the Pfa object where etudiant matches the user ID
-    const pfa = await pfaModel.findOne({ etudiant: userId });
+    const pfa = await pfaModel.findOne({ etudiants: userId });
 
     // Find the StageEte object where etudiant matches the user ID
     const stageEte = await stageEteModel.findOne({ etudiant: userId });
@@ -675,11 +680,9 @@ export const getCV = async (req, res) => {
 
     // Check if no Pfa or StageEte found
     if (!pfa && !stageEte && cvinfos.length === 0) {
-      return res
-        .status(404)
-        .json({
-          message: "No Pfa, StageEte or CV info found for the given student ID",
-        });
+      return res.status(404).json({
+        message: "No Pfa, StageEte or CV info found for the given student ID",
+      });
     }
 
     res.status(200).json({
@@ -703,7 +706,9 @@ export const addCVInfo = async (req, res) => {
 
     // Vérification si au moins une des informations est fournie
     if (!diplomes && !certifications && !langues && !experiences) {
-      return res.status(400).json({ message: "At least one CV field is required" });
+      return res
+        .status(400)
+        .json({ message: "At least one CV field is required" });
     }
 
     const userId = req.auth.userId; // Extraire l'ID de l'utilisateur du middleware d'authentification
@@ -716,7 +721,7 @@ export const addCVInfo = async (req, res) => {
           "cvinfos.diplomes": diplomes || [], // Mettre à jour les diplômes (s'il y en a)
           "cvinfos.certifications": certifications || [], // Mettre à jour les certifications
           "cvinfos.langues": langues || [], // Mettre à jour les langues
-          "cvinfos.experiences": experiences || [] // Mettre à jour les expériences professionnelles
+          "cvinfos.experiences": experiences || [], // Mettre à jour les expériences professionnelles
         },
       },
       { new: true, runValidators: true }
@@ -737,7 +742,6 @@ export const addCVInfo = async (req, res) => {
   }
 };
 
-
 export const basculerEntreAnnee = async (req, res) => {
   try {
     const { year } = req.params; // Extraire l'année de la requête
@@ -753,7 +757,7 @@ export const basculerEntreAnnee = async (req, res) => {
       // Trouver le statut pour l'année académique spécifiée dans academic_statuses
       const statusForYear = user.academic_statuses.find((status) => {
         // Comparer l'année de statut avec l'année donnée (en prenant la première année de la plage)
-        const [startYear] = status.academic_year.split('-');
+        const [startYear] = status.academic_year.split("-");
         return parseInt(startYear, 10) === parseInt(year, 10); // Comparer avec l'année de début
       });
 
@@ -789,10 +793,6 @@ export const basculerEntreAnnee = async (req, res) => {
     });
   }
 };
-
-
-
-
 
 export const updateProfile = async (req, res) => {
   try {
@@ -841,12 +841,6 @@ export const updateProfile = async (req, res) => {
     res.status(500).json({ error: "Internal server error" });
   }
 };
-
-
-
-
-
-
 
 /////////////////////////////////////////////////////////////
 //////////////////////ENSEIGNANT//////////////////////////
@@ -1243,12 +1237,10 @@ export const notifyUsersWithDiplome = async (req, res) => {
       await sendEmailold(user.adresseEmail, user.firstName, user.lastName);
     }
 
-    res
-      .status(200)
-      .json({
-        message:
-          "Emails sent successfully to all users with situation 'diplome'.",
-      });
+    res.status(200).json({
+      message:
+        "Emails sent successfully to all users with situation 'diplome'.",
+    });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: "Error sending email notifications." });
@@ -1285,5 +1277,3 @@ const sendEmailold = async (to, firstName, lastName) => {
     throw new Error("Error sending email");
   }
 };
-
-
