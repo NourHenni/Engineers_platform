@@ -16,51 +16,61 @@ const API_ENDPOINT =
 
 export const addPeriod = async (req, res) => {
   try {
-    const currentDate = moment().utc().startOf("day");
-    const start_date = moment(req.body.DateDebutDepot + "T00:00:00Z").utc();
-    const end_date = moment(req.body.DateFinDepot + "T23:59:59Z").utc();
+    const currentDate = moment().utc().startOf("day"); // Date actuelle en UTC, au début de la journée
+
+    // Assurez-vous que les dates sont au format ISO 8601 complet et validé
+    const start_date = moment.utc(req.body.Date_Debut_depot + "T00:00:00Z");
+    const end_date = moment.utc(req.body.Date_Fin_depot + "T23:59:59Z");
+
+    // Validation des dates
     if (
       end_date.isBefore(currentDate) ||
       end_date.isBefore(start_date) ||
       start_date.isBefore(currentDate)
     ) {
-      res.status(400).json({
+      return res.status(400).json({
         success: false,
         message: "Date Invalide",
       });
-    } else {
-      const period = new periodeModel({
-        Nom: req.body.Nom,
-        Date_Debut_depot: start_date,
-        Date_Fin_depot: end_date,
-        type: req.body.type,
+    }
+
+    // Création de la période
+    const period = new periodeModel({
+      Nom: req.body.Nom,
+      Date_Debut_depot: start_date,
+      Date_Fin_depot: end_date,
+      type: req.body.type,
+    });
+
+    // Vérifier si le type existe déjà
+    const foundPeriodType = await periodeModel.findOne({ type: period.type });
+
+    if (foundPeriodType) {
+      return res.status(400).send({
+        message: "Une période avec ce type existe déjà.",
       });
-      const foundPeriodType = await periodeModel.findOne({ type: period.type });
-      if (!foundPeriodType) {
-        if (start_date.isAfter(currentDate, "day")) {
-          period.PeriodState = "Not started yet";
-        } else if (
-          start_date.isSame(currentDate, "day") ||
-          start_date.isBefore(currentDate, "day")
-        ) {
-          period.PeriodState = "In progress";
-        }
-        if (
-          period.PeriodState == "In progress" ||
-          period.PeriodState == "Not started yet"
-        ) {
-          await period.save();
-          res.status(200).send({ message: "période crée avec succés" });
-        }
-      } else {
-        res.status(400).send({
-          message: "Une periode avec ce type éxiste deja ",
-        });
-      }
+    }
+
+    // Déterminer l'état de la période
+    if (start_date.isAfter(currentDate, "day")) {
+      period.PeriodState = "Not started yet";
+    } else if (start_date.isSameOrBefore(currentDate, "day")) {
+      period.PeriodState = "In progress";
+    }
+
+    // Sauvegarder la période
+    if (
+      period.PeriodState === "In progress" ||
+      period.PeriodState === "Not started yet"
+    ) {
+      await period.save();
+      return res.status(200).send({ message: "Période créée avec succès." });
     }
   } catch (error) {
     console.error(error);
-    res.status(500).json({ message: "Erreur serveur", error: error.message });
+    return res
+      .status(500)
+      .json({ message: "Erreur serveur", error: error.message });
   }
 };
 
