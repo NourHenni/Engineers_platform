@@ -72,7 +72,6 @@ const userSchema = new mongoose.Schema(
     },
     isFirstSendPfa: { type: Boolean, default: false },
     isFirstSendEte: { type: Boolean, default: false },
-    isFirstSendListePfa: { type: Boolean, default: false },
     niveau: { type: Number, enum: [1, 2, 3] },
     isGraduated: {
       type: String,
