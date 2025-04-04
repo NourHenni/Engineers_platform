@@ -19,7 +19,7 @@ export const authMiddleware = async (req, res, next) => {
     // Log the decoded token to check its structure
     console.log("Decoded Token:", decodedToken);
 
-    req.user = decodedToken;  // Attach the decoded token to req.user
+    req.user = decodedToken; // Attach the decoded token to req.user
 
     // Fetch the user from the database
     const user = await User.findOne({ _id: userId });
@@ -28,7 +28,7 @@ export const authMiddleware = async (req, res, next) => {
         userId: userId,
         role: user.role,
       };
-      console.log("User in authMiddleware:", req.auth); // Log the user and role
+      //console.log("User in authMiddleware:", req.auth); // Log the user and role
       return next();
     } else {
       return res.status(401).json({ error: "User doesn't exist" });

@@ -4,7 +4,7 @@ import moment from "moment";
 import periodeModel from "../models/periodeModel.js";
 import nodemailer from "nodemailer";
 import soutenancePfaModel from "../models/soutenancePfaModel.js";
-import mongoose from "mongoose";
+import mongoose, { model } from "mongoose";
 
 const FROM_EMAIL = process.env.MAILER_EMAIL_ID;
 const AUTH_PASSWORD = process.env.MAILER_PASSWORD;
@@ -64,7 +64,9 @@ export const addPeriod = async (req, res) => {
       period.PeriodState === "Not started yet"
     ) {
       await period.save();
-      return res.status(200).send({ message: "Période créée avec succès." });
+      return res
+        .status(200)
+        .send({ model: period, message: "Période créée avec succès." });
     }
   } catch (error) {
     console.error(error);

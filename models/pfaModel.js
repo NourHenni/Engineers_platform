@@ -7,9 +7,6 @@ const pfaSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
-    natureSujet: {
-      type: String,
-    },
 
     technologies: { type: [String], required: true },
 
