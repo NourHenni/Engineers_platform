@@ -1,0 +1,40 @@
+{
+    "openapi": "3.0.0",
+    "info": {
+      "version": "1.0.0",
+      "title": "REST API",
+      "description": ""
+    },
+    "servers": [
+      {
+        "url": "",
+        "description": ""
+      }
+    ],
+    "tags": [
+      {
+        "name": "",
+        "description": ""
+      }
+    ],
+    "paths": {
+      "/pfa/": {
+        "get": {
+          "tags": [
+            "PFAS"
+          ],
+          "description": "",
+          "responses": {
+            "200": {
+              "description": "OK"
+            },
+            "400": {
+              "description": "Bad Request"
+            }
+          }
+        }}
+    
+    
+     
+ }}
+  

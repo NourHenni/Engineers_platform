@@ -1,0 +1,76 @@
+import express, { Router } from "express";
+import {
+  fetchPfas,
+  getPeriodes,
+  updateDelais,
+  fecthPfaById,
+  changeState,
+  publishPfas,
+  addPeriod,
+  sendListePfa,
+  fetchPublishedPfa,
+  ajouterSujetPfa,
+  getAllPfasByTeacher,
+  getPfaByIdForTeacher,
+  modifyPfaSubject,
+  deletePfa,
+  getPfasByTeacherForStudents,
+  choosePfaSubjects,
+  updateAcceptedPfa,
+  automatedAssignment,
+  manualAssignment,
+  publishAffectedPfas,
+  sendListePfaAffected,
+  fetchAssignedPfa,
+  fetchMyPfa,
+  ajouterSoutenance,
+  modifierSoutenance,
+  publierOuMasquerSoutenances,
+  sendPlanningSoutenances,
+  fetchPlanningSoutenances,
+  getPfaByAnnee,
+} from "../controllers/pfaController.js";
+
+import {
+  isAdmin,
+  isAdminOrStudent,
+  isEnseignant,
+  isEtudiant,
+} from "../middellwares/roleMiddellware.js";
+
+const router = express.Router();
+
+router.get("/getPfas", isAdmin, fetchPfas);
+router.get("/getPfaAnnee/:annee", isAdmin, getPfaByAnnee);
+router.get("/getPfas/:idPFA", isAdminOrStudent, fecthPfaById);
+router.patch("/ChangeStatePFA/:idPFA", isAdmin, changeState);
+router.patch("/publish/:response", isAdmin, publishPfas);
+router.get("/getPublishedPfas", isEtudiant, fetchPublishedPfa);
+router.post("/list/send", isAdmin, sendListePfa);
+router.patch("/choiceSubject", isEtudiant, choosePfaSubjects);
+router.patch("/updateChoice", isEtudiant, updateAcceptedPfa);
+router.patch("/assign", isAdmin, automatedAssignment);
+router.patch(
+  "/:pfaId/assign/student/:studentId/:secondStudentId?",
+  isAdmin,
+  manualAssignment
+);
+router.post("/publish/pfas/:response", isAdmin, publishAffectedPfas);
+router.post("/list/pfas/send", isAdmin, sendListePfaAffected);
+router.get("/getAssignedPfas", isEtudiant, fetchAssignedPfa);
+router.get("/students/mine", isEtudiant, fetchMyPfa);
+router.post("/open", isAdmin, addPeriod);
+router.get("/open", isAdmin, getPeriodes);
+router.patch("/open", isAdmin, updateDelais);
+router.post("/post", isEnseignant, ajouterSujetPfa);
+router.get("/mine", isEnseignant, getAllPfasByTeacher);
+router.get("/:id/mine", isEnseignant, getPfaByIdForTeacher);
+router.patch("/:id/mine", isEnseignant, modifyPfaSubject);
+router.delete("/:id", isEnseignant, deletePfa);
+router.get("/", isEtudiant, getPfasByTeacherForStudents);
+router.post("/soutenances/", isAdmin, ajouterSoutenance);
+router.patch("/:id/soutenances/", isAdmin, modifierSoutenance);
+router.post("/publish/:response", isAdmin, publierOuMasquerSoutenances);
+router.post("/list/send/soutenances", isAdmin, sendPlanningSoutenances);
+router.get("/pfa", isAdmin, fetchPlanningSoutenances);
+export default router;
