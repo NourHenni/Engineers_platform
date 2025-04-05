@@ -75,6 +75,23 @@ export const logout = async (req, res) => {
     });
   }
 };
+
+export const FetchMe = (req, res) => {
+  console.log("req: ");
+
+  // Chercher l'utilisateur dans la base de données
+  User.findOne({ _id: req.auth.userId })
+    .then((user) => {
+      if (user) {
+        return res.json({ model: user }); // Renvoie le rôle de l'utilisateur
+      }
+      return res.status(404).json({ message: "Utilisateur non trouvé" });
+    })
+    .catch((error) => {
+      res.status(500).json({ message: "Erreur serveur", error: error.message });
+    });
+};
+
 ///////////////////////////////////////////////////////////
 //////////////////////ETUDIANT/////////////////////////////
 export const createEtudiant = async (req, res) => {

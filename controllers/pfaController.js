@@ -4,7 +4,7 @@ import moment from "moment";
 import periodeModel from "../models/periodeModel.js";
 import nodemailer from "nodemailer";
 import soutenancePfaModel from "../models/soutenancePfaModel.js";
-import mongoose from "mongoose";
+import mongoose, { model } from "mongoose";
 
 const FROM_EMAIL = process.env.MAILER_EMAIL_ID;
 const AUTH_PASSWORD = process.env.MAILER_PASSWORD;
@@ -18,7 +18,6 @@ export const addPeriod = async (req, res) => {
   try {
     const currentDate = moment().utc().startOf("day"); // Date actuelle en UTC, au début de la journée
 
-    // Assurez-vous que les dates sont au format ISO 8601 complet et validé
     const start_date = moment.utc(req.body.Date_Debut_depot + "T00:00:00Z");
     const end_date = moment.utc(req.body.Date_Fin_depot + "T23:59:59Z");
 
@@ -47,6 +46,7 @@ export const addPeriod = async (req, res) => {
 
     if (foundPeriodType) {
       return res.status(400).send({
+        success: false,
         message: "Une période avec ce type existe déjà.",
       });
     }
@@ -59,18 +59,19 @@ export const addPeriod = async (req, res) => {
     }
 
     // Sauvegarder la période
-    if (
-      period.PeriodState === "In progress" ||
-      period.PeriodState === "Not started yet"
-    ) {
-      await period.save();
-      return res.status(200).send({ message: "Période créée avec succès." });
-    }
+    await period.save();
+    return res.status(200).json({
+      success: true,
+      message: "Période créée avec succès.",
+      model: period,
+    });
   } catch (error) {
     console.error(error);
-    return res
-      .status(500)
-      .json({ message: "Erreur serveur", error: error.message });
+    return res.status(500).json({
+      success: false,
+      message: "Erreur serveur",
+      error: error.message,
+    });
   }
 };
 
@@ -96,10 +97,31 @@ export const getPeriodes = async (req, res) => {
   }
 };
 
+export const getPeriod = async (req, res) => {
+  try {
+    // Récupérer toutes les périodes depuis la base de données
+    const periode = await periodeModel.findById(req.params.id);
+
+    // Vérifier si des périodes existent
+    if (!periode || periode.length === 0) {
+      return res.status(404).json({ error: "Aucune periode trouvee." });
+    }
+
+    // Retourner les périodes
+    res.status(200).json({ periode });
+  } catch (error) {
+    console.error(
+      "Erreur lors de la recuperation des periodes:",
+      error.message
+    );
+    res.status(500).json({ error: "Erreur serveur. Reessayez plus tard." });
+  }
+};
+
 // Contrôleur pour modifier les délais de dépôt
 export const updateDelais = async (req, res) => {
   try {
-    const { DateDebutDepot, DateFinDepot } = req.body;
+    const { Date_Debut_depot, Date_Fin_depot } = req.body;
 
     // Recherche de la période spécifique (exemple : "PFA")
     const periode = await periodeModel.findOne({ type: "PFA Project" });
@@ -113,8 +135,8 @@ export const updateDelais = async (req, res) => {
     // Si la période a commencé, seule la date de fin peut être modifiée
     if (now >= periode.Date_Debut_depot) {
       if (
-        DateDebutDepot &&
-        new Date(DateDebutDepot).getTime() !==
+        Date_Debut_depot &&
+        new Date(Date_Debut_depot).getTime() !==
           periode.Date_Debut_depot.getTime()
       ) {
         return res.status(400).json({
@@ -124,18 +146,18 @@ export const updateDelais = async (req, res) => {
       }
     } else {
       // Si la période n'a pas encore commencé, permettre la modification de la période
-      if (DateDebutDepot) {
-        if (new Date(DateDebutDepot) >= new Date(DateFinDepot)) {
+      if (Date_Debut_depot) {
+        if (new Date(Date_Debut_depot) >= new Date(Date_Fin_depot)) {
           return res.status(400).json({
             error: "La date de début doit être antérieure à la date de fin.",
           });
         }
-        periode.Date_Debut_depot = new Date(DateDebutDepot);
+        periode.Date_Debut_depot = new Date(Date_Debut_depot);
       }
     }
 
     // Mise à jour de la date de fin
-    periode.Date_Fin_depot = new Date(DateFinDepot);
+    periode.Date_Fin_depot = new Date(Date_Fin_depot);
     await periode.save();
 
     res.status(200).json({
@@ -640,13 +662,18 @@ export const getPfasByTeacherForStudents = async (req, res) => {
 export const fetchPfas = async (req, res) => {
   // #swagger.tags = ['PFAS']
   try {
-    const sujetsPfa = await pfaModel.find();
+    const sujetsPfa = await pfaModel
+      .find()
+      .populate("enseignant", "nom prenom")
+      .populate("etudiants", "nom prenom");
 
     if (sujetsPfa.length === 0) {
-      res.status(400).json({ message: " pas encore de sujets pfa déposés" });
-    } else {
-      res.status(200).json({ model: sujetsPfa, message: " Les sujets pfas" });
+      return res
+        .status(400)
+        .json({ message: "Pas encore de sujets PFA déposés" });
     }
+
+    res.status(200).json({ model: sujetsPfa, message: "Les sujets PFA" });
   } catch (error) {
     res.status(500).json({
       message: error.message,
@@ -763,65 +790,69 @@ export const publishPfas = async (req, res) => {
 
     if (response == "true") {
       const currentDate = moment().utc().startOf("day");
-      const start_date = moment(req.body.dateDebutChoix + "T00:00:00Z").utc();
-      const end_date = moment(req.body.dateFinChoix + "T23:59:59Z").utc();
+
+      const start_date = moment.utc(req.body.dateDebutChoix + "T00:00:00Z");
+      const end_date = moment.utc(req.body.dateFinChoix + "T23:59:59Z");
+
       if (end_date.isBefore(currentDate) || end_date.isBefore(start_date)) {
-        res.status(400).json({
+        return res.status(400).json({
           success: false,
           message: "Date Invalide",
         });
-      } else {
-        const foundPfas = await pfaModel.find({ etatDepot: "not rejected" });
-        if (foundPfas.length > 0) {
-          const periodChoix = new periodeModel({
-            Nom: req.body.Nom,
-            Date_Debut_choix: start_date,
-            Date_Fin_choix: end_date,
-            type: req.body.type,
-          });
-          const foundPeriodType = await periodeModel.findOne({
-            Nom: periodChoix.Nom,
-          });
-          if (!foundPeriodType) {
-            if (start_date.isAfter(currentDate, "day")) {
-              periodChoix.PeriodState = "Not started yet";
-            } else if (
-              start_date.isSame(currentDate, "day") ||
-              start_date.isBefore(currentDate, "day")
-            ) {
-              periodChoix.PeriodState = "In progress";
-            }
-            if (
-              periodChoix.PeriodState == "In progress" ||
-              periodChoix.PeriodState == "Not started yet"
-            ) {
-              await periodChoix.save();
-              await pfaModel.updateMany(
-                { etatDepot: "not rejected" },
-                { etatDepot: "published" }
-              );
-
-              res
-                .status(200)
-                .send(
-                  `${foundPfas.length} PFAs publiés et période mise à jour.`
-                );
-            }
-          } else {
-            res.status(400).send({
-              message: "Une periode de choix des sujets Pfas éxiste deja ",
-            });
-          }
-        } else {
-          res.status(200).send("Aucun PFA à publier.");
-        }
       }
+
+      const foundPfas = await pfaModel.find({ etatDepot: "not rejected" });
+
+      if (foundPfas.length === 0) {
+        return res.status(200).json({
+          message: "Aucun PFA à publier.",
+        });
+      }
+
+      let periodChoix = await periodeModel.findOne({ type: req.body.type });
+
+      if (periodChoix) {
+        // Période existe : mise à jour
+        periodChoix.Date_Debut_choix = start_date;
+        periodChoix.Date_Fin_choix = end_date;
+        periodChoix.Nom = req.body.Nom;
+
+        if (start_date.isAfter(currentDate, "day")) {
+          periodChoix.PeriodState = "Not started yet";
+        } else {
+          periodChoix.PeriodState = "In progress";
+        }
+
+        await periodChoix.save();
+      } else {
+        // Sinon création
+        periodChoix = new periodeModel({
+          Nom: req.body.Nom,
+          Date_Debut_choix: start_date,
+          Date_Fin_choix: end_date,
+          type: req.body.type,
+          PeriodState: start_date.isAfter(currentDate, "day")
+            ? "Not started yet"
+            : "In progress",
+        });
+
+        await periodChoix.save();
+      }
+
+      await pfaModel.updateMany(
+        { etatDepot: "not rejected" },
+        { etatDepot: "published" }
+      );
+
+      return res.status(200).json({
+        message: "PFAs publiés et période créée/mise à jour avec succès.",
+      });
     } else {
       await pfaModel.updateMany(
         { etatDepot: "published" },
         { etatDepot: "masked" }
       );
-      res.status(200).send("Liste des PFA masquée.");
+      return res.status(200).json({ message: "Liste des PFA masquée." });
     }
   } catch (error) {
     return res.status(500).json({
