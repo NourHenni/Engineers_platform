@@ -22,7 +22,8 @@ import {
   addCVInfo,
   basculerEntreAnnee,
   notifyUsersWithDiplome,
-  createAcademicYear
+  createAcademicYear,
+  FetchMe
 } from "../controllers/UserController.js";
 import { authMiddleware } from "../middellwares/authMiddellware.js";
 import { isAdmin, isAdminOrEnseignant, isEnseignant, isStudent } from "../middellwares/roleMiddellware.js";
@@ -67,7 +68,7 @@ router.patch('/student/CV', authMiddleware,isStudent, addCVInfo);
 router.post('/years/',authMiddleware,isAdmin,createAcademicYear)
 router.get('/years/:year',authMiddleware,isAdmin, basculerEntreAnnee);
 router.post('/years/notify',authMiddleware,isAdmin, notifyUsersWithDiplome);
-
+router.get("/auth/me", authMiddleware, FetchMe);
 
 // Routes for Enseignants (Teachers)
 router.post("/teachers", authMiddleware, isAdmin, upload, async (req, res) => {
