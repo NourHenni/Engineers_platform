@@ -17,22 +17,45 @@ const competenceSchema = new mongoose.Schema({
     required: true,
     validate: {
       validator: function (value) {
-        // Validation dynamique en fonction de nomCompetence
-        if (this.nomCompetence === "outilsEtTechniquesScientifiques") {
-          return ["CS1", "CS2"].includes(value); // Autorise seulement CS1 ou CS2
-        }
-        if (this.nomCompetence === "compTechnologiques") {
-          return ["CS3", "CS4", "CS5", "CS6", "CS7", "CS8"].includes(value);
-        }
-        if (this.nomCompetence === "autoDevlopEtInnovation") {
-          return ["CS9"].includes(value);
-        } else if (this.nomCompetence === "Communication") {
-          return ["CS10", "CS11"].includes(value);
-        }
-        return false; // Aucun codeCompetence valide pour d'autres valeurs de nomCompetence
+        return new Promise(async (resolve, reject) => {
+          try {
+            // Récupérer le nomCompetence selon le contexte
+            let nom =
+              typeof this.getUpdate === "function"
+                ? this.getUpdate()?.nomCompetence
+                : this.nomCompetence;
+
+            // Si non trouvé, chercher dans la base
+            if (!nom && this._id) {
+              const doc = await mongoose
+                .model("competences")
+                .findById(this._id);
+              nom = doc?.nomCompetence;
+            } else if (!nom && this._conditions?._id) {
+              const doc = await mongoose
+                .model("competences")
+                .findById(this._conditions._id);
+              nom = doc?.nomCompetence;
+            }
+
+            const validCodes =
+              {
+                outilsEtTechniquesScientifiques: ["CS1", "CS2"],
+                compTechnologiques: ["CS3", "CS4", "CS5", "CS6", "CS7", "CS8"],
+                autoDeveloppEtInnovation: ["CS9"],
+                Communication: ["CS10", "CS11"],
+              }[nom] || [];
+
+            if (!validCodes.includes(value)) {
+              throw new Error(`${value} n'est pas valide pour ${nom}.`);
+            }
+            resolve(true);
+          } catch (error) {
+            reject(error);
+          }
+        });
       },
-      message: (props) =>
-        `${props.value} n'est pas un codeCompetence valide pour ${props.instance.nomCompetence}.`,
+      message: (props) => props.reason.message,
     },
   },
 
@@ -44,4 +67,4 @@ const competenceSchema = new mongoose.Schema({
   archived: { type: Boolean, default: false }, // Champ pour archiver
 });
 
-export default mongoose.model("competences ", competenceSchema);
+export default mongoose.model("competences", competenceSchema);

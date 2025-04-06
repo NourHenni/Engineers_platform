@@ -116,8 +116,7 @@ const matiereSchema = mongoose.Schema({
     default: false,
     required: true,
   },
-  archived: { type: Boolean, 
-    default: false },
+  archived: { type: Boolean, default: false },
   competences: [
     {
       type: mongoose.Schema.Types.ObjectId,
@@ -125,14 +124,11 @@ const matiereSchema = mongoose.Schema({
       required: true,
     },
   ],
-  enseignant: 
-    {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User", // Référence au modèle User
-      default:null
-    },
-  
-  
+  enseignant: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "User", // Référence au modèle User
+    default: null,
+  },
 });
 
 const evaluationSchema = new mongoose.Schema({

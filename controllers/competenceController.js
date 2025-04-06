@@ -16,7 +16,7 @@ export const createCompetence = async (req, res) => {
 // Afficher tous les competences
 export const getCompetences = async (req, res) => {
   try {
-    const competences = await Competence.find();
+    const competences = await Competence.find().populate("matieres", "Nom");
     res.json(competences);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -60,7 +60,7 @@ export const updateCompetence = async (req, res) => {
 
     // Vérifiez si la compétence est assignée à des matières
     const isAssignedToMatieres = competence.matieres.length > 0;
-    if (isAssignedToMatieres && !force) {
+    if (isAssignedToMatieres && force) {
       return res.status(400).json({
         message:
           "La compétence est déjà assignée à des matières. Utilisez 'force: true' pour forcer la modification.",
