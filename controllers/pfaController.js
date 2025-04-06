@@ -5,7 +5,7 @@ import periodeModel from "../models/periodeModel.js";
 import nodemailer from "nodemailer";
 import soutenancePfaModel from "../models/soutenancePfaModel.js";
 import mongoose, { model } from "mongoose";
-
+import User from "../models/userModel.js";
 const FROM_EMAIL = process.env.MAILER_EMAIL_ID;
 const AUTH_PASSWORD = process.env.MAILER_PASSWORD;
 
@@ -360,13 +360,31 @@ export const getAllPfasByTeacher = async (req, res) => {
     // Retourner les informations des sujets
     res.status(200).json({
       message: "Tous les sujets PFA déposés par l'enseignant.",
-      sujets, // juste afficher les coordonnées du sujets PFA sans les informations de l'enseignant
+      model: sujets, // juste afficher les coordonnées du sujets PFA sans les informations de l'enseignant
     });
   } catch (error) {
     console.error("Erreur lors de la récupération des sujets PFA :", error);
     res.status(500).json({
       message: "Erreur serveur. Veuillez réessayer plus tard.",
     });
+  }
+};
+
+export const getStudentsPfa = async (req, res) => {
+  try {
+    const studentPfas = await User.find({ role: "etudiant", niveau: 2 })
+      .select("nom prenom") // Sélection uniquement de nom et prenom
+      .exec();
+
+    if (!studentPfas || studentPfas.length === 0) {
+      return res.status(404).json({ message: "Aucun étudiant trouvé" });
+    }
+
+    // Retourner la liste directement (tableau d'objets)
+    res.status(200).json(studentPfas);
+  } catch (error) {
+    console.error("Erreur lors de la récupération des étudiants:", error);
+    res.status(500).json({ message: "Erreur interne du serveur" });
   }
 };
 
@@ -404,7 +422,7 @@ export const getPfaByIdForTeacher = async (req, res) => {
     // Retourner les informations sur le sujet
     res.status(200).json({
       message: "Informations sur le sujet PFA.",
-      sujet,
+      model: sujet,
     });
   } catch (error) {
     console.error("Erreur lors de la récupération du sujet PFA :", error);
@@ -531,7 +549,7 @@ export const modifyPfaSubject = async (req, res) => {
 
     res.status(200).json({
       message: "Sujet PFA modifié avec succès.",
-      sujet,
+      model: sujet,
     });
   } catch (error) {
     console.error(
@@ -620,36 +638,48 @@ export const getPfasByTeacherForStudents = async (req, res) => {
       .find({ role: "enseignant" })
       .select("_id nom prenom adresseEmail");
 
-    // Récupérer les sujets PFA par enseignant
-    const sujetsParEnseignant = await Promise.all(
+    // Récupérer les sujets PFA par enseignant et reformater les données
+    const enseignantsAvecSujets = await Promise.all(
       enseignants.map(async (enseignant) => {
         const sujets = await pfaModel
           .find({ enseignant: enseignant._id })
           .select(
             "titreSujet description technologies estBinome etatAffectation"
           );
-        return {
-          enseignant,
-          sujets,
-        };
+
+        if (sujets.length > 0) {
+          return {
+            enseignant: {
+              _id: enseignant._id,
+              nom: enseignant.nom,
+              prenom: enseignant.prenom,
+              adresseEmail: enseignant.adresseEmail,
+            },
+            sujets: sujets.map((sujet) => ({
+              titre: sujet.titreSujet,
+              description: sujet.description,
+              technologies: sujet.technologies,
+              estBinome: sujet.estBinome,
+              etatAffectation: sujet.etatAffectation,
+            })),
+          };
+        }
       })
     );
 
-    // Vérification si tous les sujets sont vides
-    const enseignantsAvecSujets = sujetsParEnseignant.filter(
-      (enseignant) => enseignant.sujets.length > 0
-    );
+    // Filtrer les enseignants qui n'ont pas de sujets
+    const sujetsParEnseignant = enseignantsAvecSujets.filter(Boolean);
 
-    if (enseignantsAvecSujets.length === 0) {
+    if (sujetsParEnseignant.length === 0) {
       return res.status(404).json({
         message: "Aucun sujet PFA trouvé.",
       });
     }
 
-    // Retourner les informations des sujets PFA groupées par enseignant
+    // Retourner les données formatées
     res.status(200).json({
       message: "Liste des sujets PFA par enseignant.",
-      data: enseignantsAvecSujets,
+      data: sujetsParEnseignant,
     });
   } catch (error) {
     console.error("Erreur lors de la récupération des sujets PFA :", error);
@@ -1010,24 +1040,28 @@ export const fetchPublishedPfa = async (req, res) => {
     const studentId = req.auth.userId;
 
     const foundEtudiant = await userModel.findOne({
-      $and: [{ _id: studentId }, { niveau: 2 }],
+      _id: studentId,
+      niveau: 2,
     });
 
     if (!foundEtudiant) {
       return res
         .status(400)
-        .json({ message: " pas encore des étudiants en 2 eme " });
+        .json({ message: "Pas encore des étudiants en 2ème année" });
     }
-    const sujetsPfa = await pfaModel.find({
-      etatDepot: "published",
-    });
+
+    const sujetsPfa = await pfaModel
+      .find({
+        etatDepot: "published",
+      })
+      .populate("enseignant"); // <== Ici le populate
 
     if (sujetsPfa.length === 0) {
-      res.status(400).json({ message: " pas encore de sujets pfa publiés" });
+      res.status(400).json({ message: "Pas encore de sujets PFA publiés" });
     } else {
       res
         .status(200)
-        .json({ model: sujetsPfa, message: " Les sujets pfas publiés" });
+        .json({ model: sujetsPfa, message: "Les sujets PFAs publiés" });
     }
   } catch (error) {
     res.status(500).json({
@@ -1036,10 +1070,83 @@ export const fetchPublishedPfa = async (req, res) => {
   }
 };
 
+// Fonction pour récupérer les codes PFA des sujets publiés
+export const fetchPublishedPfaCodes = async (req, res) => {
+  try {
+    const studentId = req.auth.userId;
+
+    // Vérification de l'étudiant en 2ème année
+    const foundEtudiant = await userModel.findOne({
+      _id: studentId,
+      niveau: 2,
+    });
+
+    if (!foundEtudiant) {
+      return res
+        .status(400)
+        .json({ message: "Pas encore des étudiants en 2ème année" });
+    }
+
+    // Récupération des sujets PFA publiés
+    const sujetsPfa = await pfaModel
+      .find({ etatDepot: "published" }) // Sélectionne les sujets avec état "published"
+      .populate("enseignant"); // Ici, tu peux aussi peupler d'autres informations si nécessaire
+
+    // Vérification s'il y a des sujets PFA publiés
+    if (sujetsPfa.length === 0) {
+      return res
+        .status(400)
+        .json({ message: "Pas encore de sujets PFA publiés" });
+    }
+
+    // Récupérer les codes PFA des sujets publiés
+    const pfaCodes = sujetsPfa.map((sujet) => sujet.code_pfa); // Utilisation de `code_pfa`
+
+    // Retourne les codes des sujets PFA publiés
+    res.status(200).json({
+      codes: pfaCodes, // Liste des codes des sujets PFA publiés
+      message: "Les codes des sujets PFA publiés",
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: error.message,
+    });
+  }
+};
+
+// Backend - Route pour récupérer les utilisateurs (étudiants) au niveau 2 et leur binôme
+export const fetchStudentNiveau = async (req, res) => {
+  try {
+    // Récupérer uniquement les étudiants ayant le niveau 2
+    const users = await userModel
+      .find({ role: "etudiant", niveau: 2 })
+      .select("nom prenom niveau");
+
+    // Retourner la liste des utilisateurs avec uniquement les informations nécessaires
+    res.json({ users });
+  } catch (err) {
+    console.error(err);
+    res
+      .status(500)
+      .json({ message: "Erreur lors de la récupération des utilisateurs." });
+  }
+};
+
 export const choosePfaSubjects = async (req, res) => {
   try {
     const studentId = req.auth.userId; // ID de l'étudiant
     const { choices, binomeId, acceptedPfa } = req.body;
+    const currentPeriod = await periodeModel.findOne({
+      type: "PFA CHOICE",
+      PeriodState: "In progress",
+    });
+
+    if (!currentPeriod) {
+      return res.status(400).json({
+        success: false,
+        message: "La période de choix de PFA n'est pas ouverte.",
+      });
+    }
 
     const foundEtudiant = await userModel.findOne({
       $and: [{ _id: studentId }, { niveau: 2 }],
@@ -1178,21 +1285,9 @@ export const choosePfaSubjects = async (req, res) => {
           message: `Le sujet ${choice.codePfa} est déjà affecté.`,
         });
       }
-
-      // Vérifier si le sujet est déjà accepté
-      if (
-        pfa.choices.some((c) => c.acceptedPfa?.etudiantsAcceptedIds?.length > 0)
-      ) {
-        if (acceptedPfa === choice.codePfa) {
-          return res.status(400).json({
-            success: false,
-            message: `Le sujet ${choice.codePfa} est déjà accepté par un autre étudiant ou binôme.`,
-          });
-        }
-      }
     }
 
-    // Enregistrer les choix
+    // Mise à jour des choix et de l'assignation du binôme
     await Promise.all(
       choices.map(async (choice) => {
         const pfa = await pfaModel.findOne({ code_pfa: choice.codePfa });
@@ -1236,7 +1331,38 @@ export const choosePfaSubjects = async (req, res) => {
             }
           );
         }
+
+        // Mise à jour du binôme dans le sujet
+        if (binomeId && pfa.estBinome) {
+          await pfaModel.updateOne(
+            { code_pfa: choice.codePfa },
+            { $set: { "binomeIds.binomeId": binomeId } }
+          );
+        }
       })
+    );
+
+    // Mise à jour du champ pfas dans le modèle user avec les ObjectId des PFA
+    await userModel.updateOne(
+      { _id: studentId },
+      {
+        $addToSet: {
+          pfas: {
+            $each: await Promise.all(
+              choices.map(async (choice) => {
+                const pfa = await pfaModel.findOne({
+                  code_pfa: choice.codePfa,
+                });
+
+                if (pfa) {
+                  return pfa._id;
+                }
+                return null;
+              })
+            ).then((ids) => ids.filter((id) => id !== null)),
+          },
+        },
+      }
     );
 
     // Gestion du sujet accepté
@@ -1280,6 +1406,120 @@ export const choosePfaSubjects = async (req, res) => {
       success: false,
       message: "Une erreur est survenue lors de l'enregistrement des choix.",
     });
+  }
+};
+
+// Route pour récupérer les sujets et les choix des étudiants
+export const fetchPfaChoices = async (req, res) => {
+  try {
+    const studentId = req.auth.userId; // ID de l'utilisateur connecté (étudiant)
+
+    // Récupérer tous les sujets et leurs choix avec les informations des étudiants (nom et prénom)
+    const sujets = await pfaModel
+      .find({ etatDepot: "published" })
+      .populate("choices.etudiantsIds", "nom prenom") // Peupler 'etudiantsIds' avec 'nom' et 'prenom'
+      .populate("choices.binomeIds.etudiantId", "nom prenom") // Peupler le premier étudiant du binôme
+      .populate("choices.binomeIds.binomeId", "nom prenom"); // Peupler le deuxième étudiant du binôme
+
+    // Si c'est un étudiant, on filtre pour n'afficher que ses choix
+    const isStudent = req.auth.role === "etudiant"; // Vérifier si l'utilisateur est un étudiant
+    if (isStudent) {
+      const sujetsPourEtudiant = sujets.map((sujet) => {
+        const choicesForStudent = sujet.choices.filter(
+          (choice) =>
+            choice.etudiantsIds.some(
+              (etudiant) => etudiant._id.toString() === studentId
+            ) ||
+            choice.binomeIds.some(
+              (binome) =>
+                binome.etudiantId.toString() === studentId ||
+                binome.binomeId.toString() === studentId
+            )
+        );
+        return {
+          ...sujet.toObject(),
+          choices: choicesForStudent,
+        };
+      });
+      return res.status(200).json({ sujets: sujetsPourEtudiant });
+    }
+
+    // Si c'est un admin, retourner tous les sujets et leurs choix
+    return res.status(200).json({ sujets });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+export const fetchPfaChoiceById = async (req, res) => {
+  try {
+    const sujetId = req.params.id; // ID du sujet passé dans l'URL
+    const studentId = req.auth.userId; // ID de l'utilisateur connecté (étudiant)
+
+    // Récupérer le sujet par ID, avec les informations des étudiants dans etudiantsIds et l'enseignant
+    const sujet = await pfaModel
+      .findById(sujetId)
+      .populate("choices.binomeIds.etudiantId", "nom prenom") // Peupler les binômes avec nom et prénom
+      .populate("choices.binomeIds.binomeId", "nom prenom") // Peupler les binômes avec nom et prénom
+      .populate("enseignant", "nom prenom"); // Peupler l'enseignant avec nom et prénom
+
+    // Si le sujet n'est pas trouvé
+    if (!sujet) {
+      return res.status(404).json({ message: "Sujet non trouvé" });
+    }
+
+    // Récupérer les étudiants associés à ce sujet en utilisant les etudiantsIds
+    const etudiantsIds = sujet.choices
+      .map((choice) => choice.etudiantsIds)
+      .flat(); // Récupérer tous les étudiants (en cas de plusieurs choix)
+
+    const etudiants = await User.find({ _id: { $in: etudiantsIds } }).select(
+      "nom prenom"
+    );
+
+    // Ajouter les informations des étudiants dans chaque choix
+    const choicesWithStudents = sujet.choices.map((choice) => {
+      const students = choice.etudiantsIds.map((etudiantId) =>
+        etudiants.find(
+          (etudiant) => etudiant._id.toString() === etudiantId.toString()
+        )
+      );
+      return {
+        ...choice.toObject(),
+        etudiantsIds: students,
+      };
+    });
+
+    // Si l'utilisateur est un étudiant, on filtre pour n'afficher que ses choix
+    const isStudent = req.auth.role === "etudiant"; // Vérifier si l'utilisateur est un étudiant
+    if (isStudent) {
+      const choicesForStudent = choicesWithStudents.filter(
+        (choice) =>
+          choice.etudiantsIds.some(
+            (etudiant) => etudiant._id.toString() === studentId
+          ) ||
+          choice.binomeIds.some(
+            (binome) =>
+              binome.etudiantId.toString() === studentId ||
+              binome.binomeId.toString() === studentId
+          )
+      );
+      // Retourner le sujet avec les choix filtrés
+      return res.status(200).json({
+        sujet: {
+          ...sujet.toObject(),
+          choices: choicesForStudent,
+          enseignant: sujet.enseignant, // Ajouter les informations de l'enseignant
+        },
+      });
+    }
+
+    // Si c'est un admin, retourner le sujet complet avec tous les choix
+    return res.status(200).json({
+      sujet: { ...sujet.toObject(), choices: choicesWithStudents },
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
   }
 };
 
