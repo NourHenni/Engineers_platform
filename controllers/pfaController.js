@@ -835,7 +835,7 @@ export const publishPfas = async (req, res) => {
 
       if (foundPfas.length === 0) {
         return res.status(200).json({
-          message: "Aucun PFA à publier.",
+          message: "Aucun PFA trouvé.",
         });
       }
 
