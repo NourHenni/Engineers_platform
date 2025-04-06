@@ -141,7 +141,7 @@ export const createMatiere = async (req, res) => {
 
     // Validation des compétences
     if (competences && Array.isArray(competences) && competences.length > 0) {
-      const competencesValides = await competences.find({
+      const competencesValides = await Competence.find({
         _id: { $in: competences },
       });
       if (competencesValides.length !== competences.length) {
@@ -190,7 +190,7 @@ export const getMatieres = async (req, res) => {
 
     if (userRole === "admin") {
       // Admin peut voir toutes les matières
-      matieres = await Matiere.find();
+      matieres = await Matiere.find().populate("competences");
     } else if (["enseignant", "etudiant"].includes(userRole)) {
       // Vérifier si l'utilisateur existe
       const utilisateur = await User.findById(userId);
@@ -518,7 +518,33 @@ export const updateMatiere = async (req, res) => {
         .status(200)
         .json({ message: "Aucune modification effectuée." });
     }
+    if (matiereToUpdate.competences) {
+      const anciennesCompetences = existingMatiere.competences.map((c) =>
+        c.toString()
+      );
+      const nouvellesCompetences = matiereToUpdate.competences;
 
+      // Compétences à retirer
+      const competencesARetirer = anciennesCompetences.filter(
+        (id) => !nouvellesCompetences.includes(id)
+      );
+      // Compétences à ajouter
+      const competencesAAjouter = nouvellesCompetences.filter(
+        (id) => !anciennesCompetences.includes(id)
+      );
+
+      // Retirer la matière des anciennes compétences
+      await Competence.updateMany(
+        { _id: { $in: competencesARetirer } },
+        { $pull: { matieres: matiere._id } }
+      );
+
+      // Ajouter la matière aux nouvelles compétences
+      await Competence.updateMany(
+        { _id: { $in: competencesAAjouter } },
+        { $addToSet: { matieres: matiere._id } }
+      );
+    }
     // Ajouter une entrée dans l'historique uniquement si des modifications ont eu lieu
     if (Object.keys(ancienneValeur).length > 0) {
       const historiqueEntry = new Historique({
