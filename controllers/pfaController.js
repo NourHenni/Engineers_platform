@@ -79,7 +79,9 @@ export const addPeriod = async (req, res) => {
 export const getPeriodes = async (req, res) => {
   try {
     // Récupérer toutes les périodes depuis la base de données
-    const periodes = await periodeModel.find();
+    const periodes = await periodeModel.find({
+      type: { $in: ["PFA Project", "PFA CHOICE"] },
+    });
 
     // Vérifier si des périodes existent
     if (!periodes || periodes.length === 0) {

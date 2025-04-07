@@ -49,7 +49,7 @@ export const login = async (req, res) => {
     const token = jwt.sign(
       { userId: foundUser._id, role: foundUser.role }, // Add role to the token payload
       process.env.JWT_SECRET,
-      { expiresIn: "1h" }
+      { expiresIn: "24h" }
     );
 
     // Respond with the token
