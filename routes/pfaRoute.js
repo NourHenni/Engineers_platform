@@ -35,6 +35,7 @@ import {
   fetchPfaChoices,
   fetchPfaChoiceById,
   fetchStudentNiveau,
+  getPfaChoicesByStudent,
 } from "../controllers/pfaController.js";
 
 import {
@@ -152,6 +153,9 @@ router.get("/publishedCode", isEtudiant, fetchPublishedPfaCodes);
 
 // GET PFA CHOICES
 router.get("/pfasChoices", isAdminOrStudent, fetchPfaChoices);
+
+// GET PFA CHOICES
+router.get("/getChoices", isEtudiant, getPfaChoicesByStudent);
 
 //GET request
 router.get("/getPublishedPfas", isEtudiant, fetchPublishedPfa); //OK

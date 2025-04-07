@@ -140,7 +140,7 @@ export const updateDelais = async (req, res) => {
           periode.Date_Debut_depot.getTime()
       ) {
         return res.status(400).json({
-          error:
+          message:
             "La période a commencé. La date de début ne peut pas être modifiée.",
         });
       }
@@ -205,15 +205,9 @@ export const ajouterSujetPfa = async (req, res) => {
       if (!idEtudiant1 && !idEtudiant2) {
         console.warn("Aucun étudiant associé au sujet binôme.");
       } else {
-        const etudiant1 = idEtudiant1
-          ? await userModel.findOne({ _id: idEtudiant1, role: "etudiant" })
-          : null;
-        const etudiant2 = idEtudiant2
-          ? await userModel.findOne({ _id: idEtudiant2, role: "etudiant" })
-          : null;
-
-        if (etudiant1) etudiants.push(etudiant1._id);
-        if (etudiant2) etudiants.push(etudiant2._id);
+        // Ajouter les IDs des étudiants dans le tableau
+        if (idEtudiant1) etudiants.push(idEtudiant1); // Ajouter ID de l'étudiant 1
+        if (idEtudiant2) etudiants.push(idEtudiant2); // Ajouter ID de l'étudiant 2
 
         // Empêcher l'utilisation du même étudiant deux fois
         if (idEtudiant1 && idEtudiant2 && idEtudiant1 === idEtudiant2) {
@@ -226,18 +220,7 @@ export const ajouterSujetPfa = async (req, res) => {
     } else {
       // Si estBinome est faux, gérer un seul étudiant
       if (idEtudiant1) {
-        const etudiant = await userModel.findOne({
-          _id: idEtudiant1,
-          role: "etudiant",
-        });
-
-        if (!etudiant) {
-          return res
-            .status(404)
-            .json({ message: "Étudiant introuvable ou non valide." });
-        }
-
-        etudiants = [etudiant._id];
+        etudiants = [idEtudiant1]; // Ajouter uniquement l'ID de l'étudiant
       }
 
       // Si estBinome est faux et deux identifiants d'étudiants sont fournis
@@ -247,6 +230,18 @@ export const ajouterSujetPfa = async (req, res) => {
             "Seul un étudiant peut être associé lorsque estBinome est faux.",
         });
       }
+    }
+
+    // Vérification si l'un des étudiants est déjà affecté à un autre sujet
+    const etudiantsDejaAffectes = await pfaModel.find({
+      etudiants: { $in: etudiants },
+    });
+
+    if (etudiantsDejaAffectes.length > 0) {
+      return res.status(400).json({
+        message:
+          "Un ou plusieurs étudiants sont déjà affectés à un autre sujet.",
+      });
     }
 
     // Génération du code PFA
@@ -265,6 +260,7 @@ export const ajouterSujetPfa = async (req, res) => {
     };
 
     const codePfa = await generateCodePfa();
+
     // Création d'un sujet PFA
     const nouveauPfa = new pfaModel({
       code_pfa: codePfa,
@@ -274,7 +270,7 @@ export const ajouterSujetPfa = async (req, res) => {
       annee: new Date().getFullYear(),
       estBinome,
       enseignant: req.auth.userId,
-      etudiants, // Utilisation du tableau etudiants
+      etudiants, // Utilisation du tableau d'IDs d'étudiants
     });
 
     // Sauvegarde du sujet PFA
@@ -284,7 +280,7 @@ export const ajouterSujetPfa = async (req, res) => {
     const sujetAvecEnseignant = await pfaModel
       .findById(nouveauPfa._id)
       .populate("enseignant", "nom prenom email") // Ajoutez les champs requis
-      .populate("etudiants", "nom prenom email");
+      .populate("etudiants", "nom prenom email"); // Récupérer les informations des étudiants
 
     if (sujetAvecEnseignant) {
       return res.status(201).json({
@@ -347,7 +343,8 @@ export const getAllPfasByTeacher = async (req, res) => {
     // Récupérer tous les sujets PFA déposés par l'enseignant connecté
     const sujets = await pfaModel
       .find({ enseignant: req.auth.userId })
-      .populate("enseignant", "nom prenom adresseEmail") // Inclut les détails de l'enseignant
+      .populate("enseignant", "nom prenom adresseEmail")
+      .populate("etudiants", "nom prenom") // Inclut les détails de l'enseignant
       .exec();
 
     // Vérifier si des sujets ont été trouvés
@@ -435,7 +432,7 @@ export const getPfaByIdForTeacher = async (req, res) => {
 // Contrôleur pour modifier un sujet PFA
 export const modifyPfaSubject = async (req, res) => {
   try {
-    const { id } = req.params; // Récupérer l'ID du sujet depuis les paramètres de la requête
+    const { id } = req.params;
     const {
       titreSujet,
       description,
@@ -445,37 +442,30 @@ export const modifyPfaSubject = async (req, res) => {
       idEtudiant2,
     } = req.body;
 
-    // Vérification du rôle de l'utilisateur (doit être enseignant)
     if (req.auth.role !== "enseignant") {
       return res.status(403).json({
         message: "Accès interdit : uniquement accessible aux enseignants.",
       });
     }
 
-    // Rechercher le sujet PFA par ID
     const sujet = await pfaModel.findById(id);
-
-    // Vérifier si le sujet existe
     if (!sujet) {
       return res.status(404).json({
         message: "Sujet PFA introuvable.",
       });
     }
 
-    // Vérifier si le sujet appartient à l'enseignant connecté
     if (sujet.enseignant.toString() !== req.auth.userId) {
       return res.status(403).json({
         message: "Accès interdit : ce sujet ne vous appartient pas.",
       });
     }
 
-    // Vérification de la période
     const periode = await periodeModel.findOne({ type: "PFA Project" });
-
     if (!periode) {
-      return res
-        .status(404)
-        .json({ message: "Aucune période trouvée pour le PFA." });
+      return res.status(404).json({
+        message: "Aucune période trouvée pour le PFA.",
+      });
     }
 
     const now = new Date();
@@ -485,39 +475,50 @@ export const modifyPfaSubject = async (req, res) => {
       });
     }
 
-    // Mettre à jour les informations du sujet PFA
+    // Mise à jour des champs de base
     if (titreSujet) sujet.titreSujet = titreSujet;
     if (description) sujet.description = description;
     if (technologies) sujet.technologies = technologies;
     if (estBinome !== undefined) sujet.estBinome = estBinome;
 
+    // Traitement optionnel des étudiants
     let etudiants = [];
 
-    // Si estBinome est vrai, essayer de trouver deux étudiants si les informations sont données
     if (estBinome) {
-      const etudiant1 = await userModel.findOne({
-        _id: idEtudiant1,
-        role: "etudiant",
-      });
-      const etudiant2 = await userModel.findOne({
-        _id: idEtudiant2,
-        role: "etudiant",
-      });
+      if (idEtudiant1 && idEtudiant2) {
+        if (idEtudiant1 === idEtudiant2) {
+          return res.status(400).json({
+            message:
+              "Les deux identifiants d'étudiants doivent être différents.",
+          });
+        }
 
-      if (!etudiant1 || !etudiant2) {
-        return res.status(404).json({
-          message: "Un ou les deux étudiants sont introuvables ou non valides.",
+        const etudiant1 = await userModel.findOne({
+          _id: idEtudiant1,
+          role: "etudiant",
         });
-      }
-      // Empêcher l'utilisation du même étudiant deux fois
-      if (idEtudiant1 === idEtudiant2) {
-        return res.status(400).json({
-          message: "Les deux identifiants d'étudiants doivent être différents.",
+        const etudiant2 = await userModel.findOne({
+          _id: idEtudiant2,
+          role: "etudiant",
         });
+
+        if (!etudiant1 || !etudiant2) {
+          return res.status(404).json({
+            message:
+              "Un ou les deux étudiants sont introuvables ou non valides.",
+          });
+        }
+
+        etudiants = [etudiant1._id, etudiant2._id];
       }
-      etudiants = [etudiant1._id, etudiant2._id];
     } else {
-      // Si estBinome est faux, rechercher un seul étudiant si les informations sont données
+      if (idEtudiant1 && idEtudiant2) {
+        return res.status(400).json({
+          message:
+            "Seul un étudiant peut être associé lorsque estBinome est faux.",
+        });
+      }
+
       if (idEtudiant1) {
         const etudiant = await userModel.findOne({
           _id: idEtudiant1,
@@ -525,26 +526,20 @@ export const modifyPfaSubject = async (req, res) => {
         });
 
         if (!etudiant) {
-          return res
-            .status(404)
-            .json({ message: "Étudiant introuvable ou non valide." });
+          return res.status(404).json({
+            message: "Étudiant introuvable ou non valide.",
+          });
         }
 
         etudiants = [etudiant._id];
       }
-
-      // Si estBinome est faux et deux identifiants d'étudiants sont fournis
-      if (idEtudiant1 && idEtudiant2) {
-        return res.status(400).json({
-          message:
-            "Seul un étudiant peut être associé lorsque estBinome est faux.",
-        });
-      }
     }
-    // Mettre à jour le tableau des étudiants dans le sujet
-    sujet.etudiants = etudiants;
 
-    // Sauvegarder les modifications du sujet
+    // Mettre à jour les étudiants uniquement s’ils sont spécifiés
+    if (etudiants.length > 0) {
+      sujet.etudiants = etudiants;
+    }
+
     await sujet.save();
 
     res.status(200).json({
@@ -1111,6 +1106,33 @@ export const fetchPublishedPfaCodes = async (req, res) => {
     res.status(500).json({
       message: error.message,
     });
+  }
+};
+
+export const getPfaChoicesByStudent = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    // Récupérer l'étudiant connecté
+    const user = await userModel
+      .findOne({
+        _id: req.user.id, // ou req.user._id selon ton middleware
+        role: "etudiant", // filtre rôle
+        niveau: 2, // filtre niveau
+      })
+      .populate({
+        path: "pfas",
+        populate: { path: "enseignant" }, // si chaque PFA contient un enseignant référencé
+      });
+
+    console.log("user", user);
+    res.json({ choices: user.pfas }); // Liste des sujets choisis
+  } catch (error) {
+    console.error(
+      "Erreur lors de la récupération des choix de l'étudiant",
+      error
+    );
+    res.status(500).json({ error: "Erreur serveur" });
   }
 };
 
