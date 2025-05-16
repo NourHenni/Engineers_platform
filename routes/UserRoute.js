@@ -92,8 +92,18 @@ router.post("/teachers", authMiddleware, isAdmin, upload, async (req, res) => {
 router.get("/teachers", authMiddleware, isAdmin, getEnseignants);
 router.get("/teachers/:id", authMiddleware, getEnseignantById);
 router.patch("/teachers/:id", authMiddleware, updateEnseignantById);
-router.patch("/teachers/:id/password",authMiddleware,isAdmin,updateEnseignantPassword);
-router.delete("/teachers/:id",authMiddleware,isAdmin,deleteOrArchiveEnseignantById);
+router.patch(
+  "/teachers/:id/password",
+  authMiddleware,
+  isAdmin,
+  updateEnseignantPassword
+);
+router.delete(
+  "/teachers/:id",
+  authMiddleware,
+  isAdmin,
+  deleteOrArchiveEnseignantById
+);
 
 router.post("/auth/logout", authMiddleware, logout);
 router.post("/auth/login", login);

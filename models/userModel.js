@@ -72,6 +72,12 @@ const userSchema = new mongoose.Schema(
     },
     isFirstSendPfa: { type: Boolean, default: false },
     isFirstSendEte: { type: Boolean, default: false },
+    isFirstSendListePfa: { type: Boolean, default: false },
+    isFirstSendPlanningPfa: {
+      type: Boolean,
+      default: false,
+    },
+
     niveau: { type: Number, enum: [1, 2, 3] },
     isGraduated: {
       type: String,
@@ -118,7 +124,12 @@ const userSchema = new mongoose.Schema(
     annee_licence: { type: Number, required: false },
     est_prepa: { type: Boolean, required: false },
     stageete: { type: Schema.Types.ObjectId, ref: "StageEte", default: null },
-    pfa: { type: Schema.Types.ObjectId, ref: "Pfa", default: null },
+    pfas: [{ type: mongoose.Schema.Types.ObjectId, ref: "Pfa", default: [] }],
+    pfa: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Pfa", // Référence au modèle Pfa
+      required: true, // La soutenance doit être liée à un PFA
+    },
 
     academic_statuses: [
       {

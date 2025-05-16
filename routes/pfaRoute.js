@@ -30,6 +30,15 @@ import {
   fetchPlanningSoutenances,
   getPfaByAnnee,
   getPeriod,
+  getStudentsPfa,
+  fetchPublishedPfaCodes,
+  fetchPfaChoices,
+  fetchPfaChoiceById,
+  fetchStudentNiveau,
+  getPfaChoicesByStudent,
+  getEnseignantsAyantDeposePFA,
+  getSoutenancesByTeacher,
+  fetchStudentSoutenance,
 } from "../controllers/pfaController.js";
 
 import {
@@ -46,61 +55,70 @@ const router = express.Router();
 /* -------------------------------------------------------------------------- */
 
 //1.1.POST request
-router.post("/open", isAdmin, addPeriod);
+router.post("/open", isAdmin, addPeriod); //OK
 
 //1.3 GET request
-router.get("/open", isAdmin, getPeriodes);
+router.get("/open", isAdmin, getPeriodes); //OK
 
 //1.3 GET PERIOD
-router.get("/open/:id", isAdmin, getPeriod);
+router.get("/open/:id", isAdmin, getPeriod); //OK
 //1.2.PATCH request
-router.patch("/open", isAdmin, updateDelais);
+router.patch("/open", isAdmin, updateDelais); //OK
 
 //3.1.GET request
-router.get("/getPfas", isAdmin, fetchPfas);
+router.get("/getPfas", isAdmin, fetchPfas); //OK
 
 //3.1.& 4.1.GET request
 router.get("/getPfas/:idPFA", isAdminOrStudent, fecthPfaById);
 
 //3.1.PATCH request
-router.patch("/ChangeStatePFA/:idPFA", isAdmin, changeState);
+router.patch("/ChangeStatePFA/:idPFA", isAdmin, changeState); //OK
 
 //3.3.PATCH request
-router.patch("/publish/:response", isAdmin, publishPfas);
+router.patch("/publish/:response", isAdmin, publishPfas); //OK
 
 //3.4.POST request
-router.post("/list/send", isAdmin, sendListePfa);
+router.post("/list/send", isAdmin, sendListePfa); //OK
 
+// GET PFA CHOICES
+router.get("/pfasChoice/:id", isAdmin, fetchPfaChoiceById); // ok
 //7.2.PATCH request
-router.patch("/assign", isAdmin, automatedAssignment);
+router.patch("/assign", isAdmin, automatedAssignment); //ok
 
 //7.3.PATCH request
 router.patch(
   "/:pfaId/assign/student/:studentId/:secondStudentId?",
   isAdmin,
   manualAssignment
-);
+); //OK
 
 //7.4.POST request
-router.post("/publish/pfas/:response", isAdmin, publishAffectedPfas);
+router.post("/publish/pfas/:response", isAdmin, publishAffectedPfas); //ok
 
 //7.5.POST request
-router.post("/list/pfas/send", isAdmin, sendListePfaAffected);
+router.post("/list/pfas/send", isAdmin, sendListePfaAffected); //ok
 
 //8.1.POST request
-router.post("/soutenances/", isAdmin, ajouterSoutenance);
+router.post("/soutenances", isAdmin, ajouterSoutenance); //ok
 
 //8.2.GET request
-router.get("/pfa", isAdmin, fetchPlanningSoutenances);
+router.get("/pfa", isAdmin, fetchPlanningSoutenances); //ok
+
+// ADD FOR REACT
+router.get("/list/soutenances", isAdmin, fetchPlanningSoutenances); // OK
+
+//ADDDDD
+// ADD FOR REACT
+router.get("/enseignants/pfas", isAdmin, getEnseignantsAyantDeposePFA); // OK
 
 //8.3.PATCH request
-router.patch("/:id/soutenances/", isAdmin, modifierSoutenance);
+router.patch("/:id/soutenances", isAdmin, modifierSoutenance); //ok
 
 //8.4.POST request
-router.post("/publish/:response", isAdmin, publierOuMasquerSoutenances);
+router.post("/publish/:response", isAdmin, publierOuMasquerSoutenances); //ok
 
 //8.5.POST request
-router.post("/list/send/soutenances", isAdmin, sendPlanningSoutenances);
+router.post("/list/send/soutenances", isAdmin, sendPlanningSoutenances); //OK
 
 //GET request
 router.get("/getPfaAnnee/:annee", isAdmin, getPfaByAnnee);
@@ -110,26 +128,32 @@ router.get("/getPfaAnnee/:annee", isAdmin, getPfaByAnnee);
 /* -------------------------------------------------------------------------- */
 
 //2.1.POST request
-router.post("/post", isEnseignant, ajouterSujetPfa);
+router.post("/post", isEnseignant, ajouterSujetPfa); //ok
 
 //2.2.GET request - consulter tous les sujets
-router.get("/mine", isEnseignant, getAllPfasByTeacher);
+router.get("/mine", isEnseignant, getAllPfasByTeacher); //ok
+
+//2.2.GET request - consulter tous les sujets
+router.get("/students", isEnseignant, getStudentsPfa); //no
 
 //2.2.GET request - les informations d'un sujet
-router.get("/:id/mine", isEnseignant, getPfaByIdForTeacher);
+router.get("/:id/mine", isEnseignant, getPfaByIdForTeacher); //pk
 
 //2.2.PATCH request - Modifier les infos d'un sujet PFA
-router.patch("/:id/mine", isEnseignant, modifyPfaSubject);
+router.patch("/:id/mine", isEnseignant, modifyPfaSubject); //no
 
 //2.3.Delete request
-router.delete("/:id", isEnseignant, deletePfa);
+router.delete("/:id", isEnseignant, deletePfa); //ok
+
+//// soutenance
+router.get("/mesSoutenances", isEnseignant, getSoutenancesByTeacher); //pk
 
 /* -------------------------------------------------------------------------- */
 /*                                 Student Routes                             */
 /* -------------------------------------------------------------------------- */
 
 //5.1.PATCH request
-router.patch("/choiceSubject", isEtudiant, choosePfaSubjects);
+router.patch("/choiceSubject", isEtudiant, choosePfaSubjects); //ok
 
 //5.2.PATCH request
 router.patch("/updateChoice", isEtudiant, updateAcceptedPfa);
@@ -137,12 +161,27 @@ router.patch("/updateChoice", isEtudiant, updateAcceptedPfa);
 //GET request
 router.get("/", isEtudiant, getPfasByTeacherForStudents);
 
+// GET REQUEST -FETCH CODE PFAS
+router.get("/publishedCode", isEtudiant, fetchPublishedPfaCodes); //ok
+
+// GET PFA CHOICES
+router.get("/pfasChoices", isAdminOrStudent, fetchPfaChoices);
+
+// GET PFA CHOICES
+router.get("/getChoices", isEtudiant, getPfaChoicesByStudent);
+
 //GET request
-router.get("/getPublishedPfas", isEtudiant, fetchPublishedPfa);
+router.get("/getPublishedPfas", isAdminOrStudent, fetchPublishedPfa); //OK
 
 //GET request
 router.get("/getAssignedPfas", isEtudiant, fetchAssignedPfa);
 
 //10.1.GET request
-router.get("/students/mine", isEtudiant, fetchMyPfa);
+router.get("/student/minee", isEtudiant, fetchMyPfa);
+
+//GET STUDENT PAR NIVEAU
+router.get("/studentsPfas", fetchStudentNiveau);
+
+//// GET SOUTENANCE
+router.get("/sudent/mySoutenance", isEtudiant, fetchStudentSoutenance);
 export default router;
