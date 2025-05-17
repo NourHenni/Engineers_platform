@@ -3,6 +3,7 @@ import { authMiddleware } from "../middellwares/authMiddellware.js";
 import {
   isAdmin,
   isAdminOrEnseignant,
+  isEtudiant,
 } from "../middellwares/roleMiddellware.js";
 
 const router = express.Router();
@@ -17,7 +18,7 @@ import {
 
 // Routes CRUD
 router.post("/", authMiddleware, isAdmin, createCompetence);
-router.get("/", authMiddleware, isAdminOrEnseignant, getCompetences);
+router.get("/", authMiddleware, getCompetences);
 router.get("/:id", authMiddleware, isAdmin, getCompetenceById);
 router.patch("/:id", authMiddleware, isAdmin, updateCompetence);
 router.delete("/:id", authMiddleware, isAdmin, deleteCompetence);

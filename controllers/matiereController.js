@@ -1,11 +1,8 @@
 import Matiere from "../models/matiereModel.js";
-
 import nodemailer from "nodemailer";
 import Competence from "../models/competenceModel.js";
 import User from "../models/userModel.js";
-
 import Historique from "../models/historiqueModel.js";
-
 export const createMatiere = async (req, res) => {
   try {
     const {
@@ -183,34 +180,28 @@ export const createMatiere = async (req, res) => {
 
 export const getMatieres = async (req, res) => {
   try {
-    const userId = req.auth.userId; // Obtenu depuis le middleware d'authentification
-    const userRole = req.auth.role; // Obtenu depuis le middleware d'authentification
+    const userId = req.auth.userId;
+    const userRole = req.auth.role;
 
     let matieres;
 
     if (userRole === "admin") {
       // Admin peut voir toutes les matières
       matieres = await Matiere.find().populate("competences");
-    } else if (["enseignant", "etudiant"].includes(userRole)) {
-      // Vérifier si l'utilisateur existe
-      const utilisateur = await User.findById(userId);
-      if (!utilisateur) {
-        return res.status(404).json({
-          message: `${
-            userRole === "enseignant" ? "Enseignant" : "Étudiant"
-          } introuvable.`,
-        });
-      }
-
-      // Enseignant et étudiant voient uniquement les matières publiées
-      matieres = await Matiere.find({ publiee: true });
+    } else if (userRole === "enseignant") {
+      // Enseignant voit les matières qui lui sont assignées
+      matieres = await Matiere.find({ enseignant: userId }).populate(
+        "competences"
+      );
+    } else if (userRole === "etudiant") {
+      matieres = await Matiere.find().populate("competences");
     } else {
       return res
         .status(403)
         .json({ message: "Accès refusé : rôle non autorisé." });
     }
 
-    if (matieres.length === 0) {
+    if (!matieres || matieres.length === 0) {
       return res.status(404).json({ message: "Aucune matière trouvée." });
     }
 
@@ -219,20 +210,21 @@ export const getMatieres = async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 };
-
 export const getMatiereDetail = async (req, res) => {
   try {
-    const matiereId = req.params.id; // Récupère l'ID de la matière
-    const userRole = req.auth.role; // Récupère le rôle de l'utilisateur depuis le middleware
+    const matiereId = req.params.id;
+    const userRole = req.auth.role;
 
-    // Récupérer la matière par son ID avec la condition basée sur le rôle de l'utilisateur
     let matiere;
     if (userRole === "admin") {
-      // Si l'utilisateur est un admin, il peut voir toutes les matières
-      matiere = await Matiere.findById(matiereId);
+      matiere = await Matiere.findById(matiereId)
+        .populate("competences")
+        .populate("historiquePropositions.enseignant", "nom prenom");
     } else {
-      // Si l'utilisateur n'est pas un admin, il ne peut voir que les matières publiées
-      matiere = await Matiere.findOne({ _id: matiereId, publiee: true });
+      matiere = await Matiere.findOne({
+        _id: matiereId,
+        publiee: true,
+      }).populate("competences");
     }
 
     if (!matiere) {
@@ -244,19 +236,22 @@ export const getMatiereDetail = async (req, res) => {
       });
     }
 
-    // Récupérer l'historique de la matière
-    const historique = await Historique.find({ matiere: matiereId });
+    // Récupérer l'historique
+    const historique = await Historique.find({ matiere: matiereId })
+      .populate("utilisateur", "nom prenom role")
+      .sort({ date: -1 });
 
-    // Retourner la matière avec son historique
     res.status(200).json({
-      matiere,
+      ...matiere.toObject(),
       historique,
     });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({
+      error: error.message,
+      stack: process.env.NODE_ENV === "development" ? error.stack : undefined,
+    });
   }
 };
-
 export const updateMatiere = async (req, res) => {
   try {
     const matiereId = req.params.id;
@@ -705,8 +700,8 @@ export const updateAvancement = async (req, res) => {
     host: "smtp.gmail.com",
     port: 465,
     auth: {
-      user: process.env.MAILER_EMAIL_ID, // Votre adresse email
-      pass: process.env.MAILER_PASSWORD, // Votre mot de passe
+      user: process.env.MAILER_EMAIL_ID,
+      pass: process.env.MAILER_PASSWORD,
     },
   });
   const matiere = await Matiere.findById(id);
@@ -755,6 +750,140 @@ Cordialement,`,
   }
 };
 
+function updateChapitreStatus(chapitre) {
+  // 1. Vérification que le chapitre a des sections
+  if (!chapitre.sections || !Array.isArray(chapitre.sections)) {
+    chapitre.AvancementChap = "NonCommencee";
+    chapitre.dateFinChap = undefined;
+    return;
+  }
+
+  const sections = chapitre.sections;
+
+  // 2. Si toutes les sections sont terminées
+  if (sections.every((s) => s.AvancementSection === "Terminee")) {
+    chapitre.AvancementChap = "Terminee";
+    chapitre.dateFinChap = new Date();
+  }
+  // 3. Si au moins une section est en cours
+  else if (sections.some((s) => s.AvancementSection === "EnCours")) {
+    chapitre.AvancementChap = "EnCours";
+    chapitre.dateFinChap = undefined;
+  }
+  // 4. Cas par défaut (non commencé)
+  else {
+    chapitre.AvancementChap = "NonCommencee";
+    chapitre.dateFinChap = undefined;
+  }
+}
+
+// Fonction helper pour mettre à jour le statut du chapitre
+
+// Fonction pour envoyer les notifications
+async function sendNotifications(
+  matiere,
+  chapitreIndex,
+  sectionIndex,
+  nouveauStatut
+) {
+  try {
+    const transporter = nodemailer.createTransport({
+      service: "gmail",
+      host: "smtp.gmail.com",
+      port: 465,
+      auth: {
+        user: process.env.MAILER_EMAIL_ID,
+        pass: process.env.MAILER_PASSWORD,
+      },
+    });
+
+    const chapitre = matiere.Curriculum[chapitreIndex];
+    const section = chapitre.sections[sectionIndex];
+
+    // Notification à l'admin
+    const admin = await User.findOne({ role: "admin" });
+    if (admin && admin.adresseEmail) {
+      await transporter.sendMail({
+        from: process.env.MAILER_EMAIL_ID,
+        to: admin.adresseEmail,
+        subject: `Mise à jour - ${matiere.Nom}`,
+        text: `La section "${section.nomSection}" (${nouveauStatut}) a été mise à jour.`,
+      });
+    }
+
+    // Notifications aux étudiants
+    const etudiants = await User.find({
+      role: "etudiant",
+      matieres: matiere._id,
+    });
+
+    for (const etudiant of etudiants) {
+      if (etudiant.adresseEmail) {
+        await transporter.sendMail({
+          from: process.env.MAILER_EMAIL_ID,
+          to: etudiant.adresseEmail,
+          subject: `Avancement - ${matiere.Nom}`,
+          text: `La section "${section.nomSection}" est maintenant "${nouveauStatut}".`,
+        });
+      }
+    }
+  } catch (error) {
+    console.error("Erreur lors de l'envoi des notifications:", error);
+    // Ne pas bloquer le processus principal pour une erreur de notification
+  }
+}
+
+export const updateCurriculum = async (req, res) => {
+  try {
+    const matiere = await Matiere.findById(req.params.id);
+
+    if (!matiere) {
+      return res.status(404).json({ message: "Matière non trouvée." });
+    }
+
+    // Vérifier si l'utilisateur est l'enseignant assigné ou admin
+    if (
+      req.auth.role === "enseignant" &&
+      (!matiere.enseignant || matiere.enseignant.toString() !== req.auth.userId)
+    ) {
+      return res.status(403).json({ message: "Action non autorisée." });
+    }
+
+    // Validation du curriculum
+    if (!Array.isArray(req.body.Curriculum)) {
+      return res.status(400).json({ error: "Format de curriculum invalide." });
+    }
+
+    // Valider chaque chapitre et section
+    const validatedCurriculum = req.body.Curriculum.map((chapitre) => {
+      return {
+        titreChapitre: chapitre.titreChapitre || "Sans titre",
+        AvancementChap: chapitre.AvancementChap || "NonCommencee",
+        sections: (chapitre.sections || []).map((section) => {
+          return {
+            nomSection: section.nomSection || "Sans titre",
+            Description: section.Description || "",
+            AvancementSection: section.AvancementSection || "NonCommencee",
+            dateFinSection:
+              section.AvancementSection === "Terminee" ? new Date() : null,
+          };
+        }),
+      };
+    });
+
+    // Mettre à jour seulement le curriculum
+    const updated = await Matiere.findByIdAndUpdate(
+      req.params.id,
+      { Curriculum: validatedCurriculum },
+      { new: true }
+    );
+
+    res.json(updated);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
 export const proposeModification = async (req, res) => {
   const { id } = req.params; // Récupère l'ID de la matière depuis l'URL
   const { contenu, raison } = req.body; // Récupère les données envoyées dans la requête
@@ -793,7 +922,6 @@ export const proposeModification = async (req, res) => {
 
     // Ajouter la proposition à l'historique des propositions
     matiere.historiquePropositions.push(nouvelleProposition);
-
     // Sauvegarder la matière avec la nouvelle proposition
     await matiere.save();
 
@@ -809,27 +937,29 @@ export const proposeModification = async (req, res) => {
 };
 
 export const validateModification = async (req, res) => {
-  const { id } = req.params; // ID de la matière
-  const { propositionId } = req.body; // ID de la proposition à valider
+  const { id } = req.params;
+  const { propositionId } = req.body;
 
   try {
-    // Vérifier si la matière existe
-    const matiere = await Matiere.findById(id);
+    const matiere = await Matiere.findById(id)
+      .populate("competences")
+      .populate("historiquePropositions.enseignant", "nom prenom email");
     if (!matiere) {
       return res.status(404).json({ message: "Matière non trouvée." });
     }
 
-    // Trouver la proposition dans l'historique
     const proposition = matiere.historiquePropositions.id(propositionId);
+
     if (!proposition) {
       return res.status(404).json({ message: "Proposition non trouvée." });
     }
 
     if (proposition.valide) {
-      return res
-        .status(400)
-        .json({ message: "Cette proposition a déjà été validée." });
+      return res.status(400).json({
+        error: "Cette proposition a déjà été validée.",
+      });
     }
+
     // Comparer le contenu actuel avec le contenu proposé pour identifier les champs modifiés
     const modifications = {};
     for (const key in proposition.contenu) {
@@ -867,84 +997,70 @@ export const validateModification = async (req, res) => {
 
 export const EnvoiEmailEvaluation = async (req, res) => {
   try {
-    // Vérifier si l'admin fournit une liste de matières ou notifier toutes
-    const { matieresIds } = req.body; // Liste des ID des matières à notifier
+    const { matieresIds } = req.body;
 
-    if (!matieresIds || matieresIds.length === 0) {
-      return res.status(400).json({ error: "Aucune matière spécifiée." });
+    if (!matieresIds || !Array.isArray(matieresIds)) {
+      return res.status(400).json({ error: "Liste de matières invalide." });
     }
 
-    // Récupérer les matières concernées
-    const matieres = await Matiere.find({
-      _id: { $in: matieresIds },
-    });
-
-    if (!matieres || matieres.length === 0) {
-      return res.status(404).json({ error: "Matière(s) non trouvée(s)." });
+    const matieres = await Matiere.find({ _id: { $in: matieresIds } });
+    if (matieres.length === 0) {
+      return res.status(404).json({ error: "Aucune matière trouvée." });
     }
 
-    // Configurer le transporteur SMTP
     const transporter = nodemailer.createTransport({
       service: "gmail",
-      host: "smtp.gmail.com",
-      port: 465,
       auth: {
-        user: process.env.MAILER_EMAIL_ID, // Votre adresse email
-        pass: process.env.MAILER_PASSWORD, // Votre mot de passe
+        user: process.env.MAILER_EMAIL_ID,
+        pass: process.env.MAILER_PASSWORD,
       },
     });
 
-    // Parcourir les matières et envoyer des emails
-    for (const matiere of matieres) {
-      const etudiants = await User.find({ role: "etudiant" });
-      if (!etudiants || etudiants.length === 0) {
-        console.log(`Aucun étudiant trouvé pour la matière ${matiere.Nom}`);
-        continue;
-      }
+    const etudiants = await User.find({ role: "etudiant" });
 
-      // Construire et envoyer un email pour chaque étudiant
-      for (const etudiant of etudiants) {
-        if (!etudiant.adresseEmail) {
-          console.log(
-            `Aucun email pour l'étudiant ${etudiant.nom} ${etudiant.prenom}`
-          );
-          continue;
-        }
-        const evaluationFormLink = `http://localhost:5000/matieres/${matiere.id}/evaluation`;
+    for (const etudiant of etudiants) {
+      if (!etudiant.adresseEmail) continue;
 
-        const mailOptions = {
+      try {
+        await transporter.sendMail({
           from: process.env.MAILER_EMAIL_ID,
           to: etudiant.adresseEmail,
-          subject: `Invitaion Pour Evaluation`,
-          text: `Bonjour ${etudiant.nom},
-
-Vous êtes invité(e) à évaluer la matière "${matiere.Nom}". Veuillez remplir le formulaire d'évaluation via le lien suivant :
-
-${evaluationFormLink}
-Cordialement,
-L'équipe administratif.`,
-        };
-
-        // Envoyer l'email
-        await transporter.sendMail(mailOptions);
+          subject: "Évaluation des matières",
+          html: `
+            <h3>Cher(e) ${etudiant.nom},</h3>
+            <p>Vous êtes invité à évaluer les matières suivantes :</p>
+            <ul>
+              ${matieres
+                .map(
+                  (m) =>
+                    `<li>
+                  ${m.Nom} - 
+                  <a href="${process.env.FRONTEND_URL}/matieres/${m._id}/evaluation">
+                    Formulaire d'évaluation
+                  </a>
+                </li>`
+                )
+                .join("")}
+            </ul>
+            <p>Cordialement,<br/>L'équipe pédagogique</p>
+          `,
+        });
+      } catch (emailError) {
+        console.error("Erreur d'envoi email:", emailError);
       }
     }
 
-    res.status(200).json({ message: "Notification envoyée avec succès." });
+    res.status(200).json({ message: "Notifications envoyées avec succès." });
   } catch (error) {
-    console.error("Erreur lors de l'envoi des notifications :", error);
-    res
-      .status(500)
-      .json({ error: "Erreur serveur lors de l'envoi des notifications." });
+    console.error("Erreur EnvoiEmailEvaluation:", error);
+    res.status(500).json({ error: "Erreur serveur" });
   }
 };
 
-// Ajouter une évaluation
 export const addEvaluation = async (req, res) => {
-  const { id } = req.params; // ID de la matière
-  const etudiant = await User.findOne({ role: "etudiant" });
+  const { id } = req.params;
+  const etudiantId = req.auth.userId; // ID de l'étudiant connecté
 
-  const etudiantId = etudiant.id; // ID de l'étudiant connecté
   const {
     VolumeHoraire,
     MethodesPedagogiques,
@@ -956,7 +1072,7 @@ export const addEvaluation = async (req, res) => {
   } = req.body;
 
   try {
-    // Trouver la matière
+    // Vérifier si la matière existe
     const matiere = await Matiere.findById(id);
     if (!matiere) {
       return res.status(404).json({ message: "Matière non trouvée." });
@@ -964,12 +1080,12 @@ export const addEvaluation = async (req, res) => {
 
     // Vérifier si l'étudiant a déjà évalué cette matière
     if (matiere.etudiantsDejaEvalue.includes(etudiantId)) {
-      return res
-        .status(400)
-        .json({ message: "Vous avez déjà évalué cette matière." });
+      return res.status(400).json({
+        message: "Vous avez déjà évalué cette matière.",
+      });
     }
 
-    // Créer une nouvelle évaluation
+    // Créer la nouvelle évaluation
     const nouvelleEvaluation = {
       VolumeHoraire,
       MethodesPedagogiques,
@@ -978,65 +1094,84 @@ export const addEvaluation = async (req, res) => {
       Satisfaction,
       PertinenceMatiere,
       Remarques,
+      dateEvaluation: new Date(),
     };
 
-    // Ajouter l'évaluation anonymement
+    // Ajouter l'évaluation et marquer l'étudiant
     matiere.evaluations.push(nouvelleEvaluation);
-
-    // Ajouter l'étudiant à la liste des évaluateurs
     matiere.etudiantsDejaEvalue.push(etudiantId);
 
-    // Sauvegarder la matière
+    // Sauvegarder
     await matiere.save();
 
     res.status(201).json({
-      message: "Évaluation ajoutée avec succès.",
+      message: "Évaluation enregistrée avec succès.",
       evaluation: nouvelleEvaluation,
-      dateEvaluation: new Date(Date.now()).toISOString(),
     });
   } catch (error) {
-    console.error("Erreur lors de l'ajout de l'évaluation :", error);
-    res.status(500).json({ error: error.message });
+    console.error("Erreur lors de l'ajout de l'évaluation:", error);
+    res.status(500).json({
+      error: error.message,
+      details: process.env.NODE_ENV === "development" ? error.stack : undefined,
+    });
   }
 };
 
-// Obtenir les évaluations d'une matière
+// Fonction pour récupérer les évaluations
 export const getEvaluations = async (req, res) => {
-  const { id } = req.params; // ID de la matière
-  const userRole = req.auth.role; // Rôle de l'utilisateur
-  const userId = req.auth.userId; // ID de l'utilisateur
+  const { id } = req.params;
+  const userRole = req.auth.role;
+  const userId = req.auth.userId;
 
   try {
-    // Trouver la matière
-    const matiere = await Matiere.findById(id).populate("enseignant");
+    // Récupérer la matière avec les évaluations et les étudiants
+    const matiere = await Matiere.findById(id)
+      .populate("enseignant", "nom prenom email")
+      .populate("etudiantsDejaEvalue", "nom prenom");
+
     if (!matiere) {
       return res.status(404).json({ message: "Matière non trouvée." });
     }
+
+    // Vérifier les permissions
     if (userRole === "admin") {
-      return res.status(200).json({ evaluations: matiere.evaluations });
-    }
-    // Si l'utilisateur est un enseignant, vérifier l'accès
-    if (userRole === "enseignant") {
-      // Vérifier si l'enseignant est assigné à cette matière
-      const enseignant = matiere.enseignant.map((ens) => ens._id.toString());
-      if (enseignant.includes(userId)) {
-        return res.status(200).json({
-          evaluations: matiere.evaluations,
-          message: "Accès enseignant",
+      // Admin peut tout voir
+      return res.status(200).json({
+        matiere: {
+          _id: matiere._id,
+          Nom: matiere.Nom,
+          CodeMatiere: matiere.CodeMatiere,
+          Enseignant: matiere.enseignant,
+        },
+        evaluations: matiere.evaluations,
+        etudiantsEvaluateurs: matiere.etudiantsDejaEvalue,
+        nombreEvaluations: matiere.evaluations.length,
+      });
+    } else if (userRole === "enseignant") {
+      // Enseignant ne voit que ses matières
+      if (matiere.enseignant._id.toString() !== userId) {
+        return res.status(403).json({
+          message: "Accès refusé: vous n'enseignez pas cette matière.",
         });
-      } else {
-        return res
-          .status(403)
-          .json({ error: "Vous n'êtes pas autorisé à voir cette matière." });
       }
+
+      return res.status(200).json({
+        matiere: {
+          _id: matiere._id,
+          Nom: matiere.Nom,
+          CodeMatiere: matiere.CodeMatiere,
+        },
+        evaluations: matiere.evaluations,
+        nombreEvaluations: matiere.evaluations.length,
+      });
+    } else {
+      return res.status(403).json({ message: "Accès refusé." });
     }
-    // Retourner les évaluations de la matière
-    res.status(200).json({
-      message: `Évaluations pour la matière : ${matiere.Nom}`,
-      evaluations: matiere.evaluations,
-    });
   } catch (error) {
-    console.error("Erreur lors de la récupération des évaluations :", error);
-    res.status(500).json({ error: error.message });
+    console.error("Erreur lors de la récupération des évaluations:", error);
+    res.status(500).json({
+      error: error.message,
+      details: process.env.NODE_ENV === "development" ? error.stack : undefined,
+    });
   }
 };
