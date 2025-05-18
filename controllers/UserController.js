@@ -49,7 +49,7 @@ export const login = async (req, res) => {
     const token = jwt.sign(
       { userId: foundUser._id, role: foundUser.role }, // Add role to the token payload
       process.env.JWT_SECRET,
-      { expiresIn: "1h" }
+      { expiresIn: "24h" }
     );
 
     // Respond with the token
@@ -549,7 +549,88 @@ export const addStudentsFromFile = async (req, res) => {
     });
   }
 };
+export const batchUpdateStudentSituation = async (req, res) => {
+  try {
+    const { studentIds, nouvelleSituation, anneeAcademique } = req.body;
 
+    // Validate input
+    const validSituations = ["passe", "redouble", "diplome"];
+    if (!validSituations.includes(nouvelleSituation)) {
+      return res.status(400).json({ error: "Invalid situation value" });
+    }
+
+    if (!anneeAcademique || !/^\d{4}-\d{4}$/.test(anneeAcademique)) {
+      return res.status(400).json({
+        error: "Invalid or missing academic year format (e.g., 2024-2025)",
+      });
+    }
+
+    const students = await User.find({ _id: { $in: studentIds } });
+
+    if (students.length !== studentIds.length) {
+      return res.status(404).json({ error: "Some students not found" });
+    }
+
+    // Check if any student is already graduated
+    const graduatedStudents = students.filter(s => s.situation === "diplome" && nouvelleSituation !== "diplome");
+    if (graduatedStudents.length > 0) {
+      return res.status(400).json({
+        error: `Cannot modify situation for ${graduatedStudents.length} graduated students`,
+        graduatedStudents: graduatedStudents.map(s => s._id)
+      });
+    }
+
+    const updatePromises = students.map(async (student) => {
+      // Save previous situation
+      const previousSituation = student.situation;
+
+      // Update situation
+      if (nouvelleSituation === "passe") {
+        if (student.niveau < 3) {
+          student.niveau += 1;
+          student.situation = "passe";
+        } else if (student.niveau === 3) {
+          student.situation = "diplome";
+          student.annee_sortie_isamm = new Date().getFullYear();
+        }
+      } else {
+        student.situation = nouvelleSituation;
+      }
+
+      // Update academic status
+      const existingStatusIndex = student.academic_statuses.findIndex(
+        (status) => status.academic_year === anneeAcademique
+      );
+
+      if (student.situation === "diplome" && existingStatusIndex === -1) {
+        return null; // Skip this student
+      }
+
+      if (existingStatusIndex !== -1) {
+        student.academic_statuses[existingStatusIndex].status = student.situation;
+      } else {
+        student.academic_statuses.push({
+          academic_year: anneeAcademique,
+          status: student.situation,
+        });
+      }
+
+      return student.save();
+    });
+
+    const results = await Promise.all(updatePromises);
+    const successfulUpdates = results.filter(r => r !== null);
+
+    res.status(200).json({
+      message: `${successfulUpdates.length} student situations updated successfully`,
+      skipped: results.length - successfulUpdates.length,
+      students: successfulUpdates
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
 export const updateStudentSituation = async (req, res) => {
   try {
     const { id } = req.params;
@@ -574,52 +655,50 @@ export const updateStudentSituation = async (req, res) => {
     }
 
     // Prevent modification if the student is already graduated
-    if (student.situation === "diplome") {
+    // Only prevent if trying to change FROM graduated status
+    if (student.situation === "diplome" && nouvelleSituation !== "diplome") {
       return res
         .status(400)
         .json({ error: "Cannot modify situation for graduated student" });
     }
 
-    // Update the student's situation
+    // Save previous situation for comparison
+    const previousSituation = student.situation;
+
+    // Handle the situation update
     if (nouvelleSituation === "passe") {
       if (student.niveau < 3) {
         student.niveau += 1;
         student.situation = "passe";
       } else if (student.niveau === 3) {
-        // If the student is in the final level and passes, they graduate
         student.situation = "diplome";
-        // Set the year of graduation to the current year
-        student.annee_sortie_isamm = new Date().getFullYear(); // Update to current year
+        student.annee_sortie_isamm = new Date().getFullYear();
       }
     } else {
       student.situation = nouvelleSituation;
     }
 
-    // Update academic_statuses for the specified academic year
+    // Check again: if the situation is diplome now and no status entry exists yet, block
     const existingStatusIndex = student.academic_statuses.findIndex(
       (status) => status.academic_year === anneeAcademique
     );
 
+    if (student.situation === "diplome" && existingStatusIndex === 0) {
+      return res.status(400).json({
+        error: "Cannot add a new academic status for a graduated student",
+      });
+    }
+
     if (existingStatusIndex !== -1) {
-      // If the student is already graduated, don't update the academic status
-      if (student.situation === "diplome") {
-        return res.status(400).json({
-          error: "Cannot add a new academic status for a graduated student",
-        });
-      }
-      // Update existing entry
+      // Update existing status entry
       student.academic_statuses[existingStatusIndex].status = student.situation;
+      student.academic_statuses[existingStatusIndex].niveau = student.niveau;
     } else {
-      // If the student is already graduated, don't add a new academic status
-      if (student.situation === "diplome") {
-        return res.status(400).json({
-          error: "Cannot add a new academic status for a graduated student",
-        });
-      }
-      // Add new entry
+      // Add new academic year entry
       student.academic_statuses.push({
         academic_year: anneeAcademique,
         status: student.situation,
+         niveau: student.niveau,
       });
     }
 
@@ -644,10 +723,7 @@ export const createAcademicYear = async (req, res) => {
     }
 
     // Check if the year already exists
-    const existingYear = await Year.findOne({ year: anneeUniversitaire });
-    if (existingYear) {
-      return res.status(400).json({ error: "Academic year already exists" });
-    }
+   
 
     // Create a new year
     const newYear = new Year({ year: anneeUniversitaire });
@@ -659,7 +735,8 @@ export const createAcademicYear = async (req, res) => {
       {
         $set: {
           stageete: null, // Clear internships
-          pfa: null, // Clear PFA
+          pfas: [],
+          pfa:null // Clear PFA
         },
       }
     );
@@ -668,7 +745,6 @@ export const createAcademicYear = async (req, res) => {
       {},
       {
         $set: {
-          competences: null, // Clear competences
           enseignant: null, // Clear enseignant
         },
       }
