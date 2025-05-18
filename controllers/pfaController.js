@@ -5,14 +5,18 @@ import periodeModel from "../models/periodeModel.js";
 import nodemailer from "nodemailer";
 import soutenancePfaModel from "../models/soutenancePfaModel.js";
 import mongoose, { model } from "mongoose";
-
+import User from "../models/userModel.js";
 const FROM_EMAIL = process.env.MAILER_EMAIL_ID;
 const AUTH_PASSWORD = process.env.MAILER_PASSWORD;
 
+import dotenv from "dotenv";
+dotenv.config();
 const API_ENDPOINT =
   process.env.NODE_ENV === "production"
     ? process.env.PRODUCTION_API_URL
     : process.env.DEVELOPMENT_API_URL;
+
+console.log("API_ENDPOINT", API_ENDPOINT);
 
 export const addPeriod = async (req, res) => {
   try {
@@ -79,7 +83,9 @@ export const addPeriod = async (req, res) => {
 export const getPeriodes = async (req, res) => {
   try {
     // Récupérer toutes les périodes depuis la base de données
-    const periodes = await periodeModel.find();
+    const periodes = await periodeModel.find({
+      type: { $in: ["PFA Project", "PFA CHOICE"] },
+    });
 
     // Vérifier si des périodes existent
     if (!periodes || periodes.length === 0) {
@@ -140,7 +146,7 @@ export const updateDelais = async (req, res) => {
           periode.Date_Debut_depot.getTime()
       ) {
         return res.status(400).json({
-          error:
+          message:
             "La période a commencé. La date de début ne peut pas être modifiée.",
         });
       }
@@ -205,15 +211,9 @@ export const ajouterSujetPfa = async (req, res) => {
       if (!idEtudiant1 && !idEtudiant2) {
         console.warn("Aucun étudiant associé au sujet binôme.");
       } else {
-        const etudiant1 = idEtudiant1
-          ? await userModel.findOne({ _id: idEtudiant1, role: "etudiant" })
-          : null;
-        const etudiant2 = idEtudiant2
-          ? await userModel.findOne({ _id: idEtudiant2, role: "etudiant" })
-          : null;
-
-        if (etudiant1) etudiants.push(etudiant1._id);
-        if (etudiant2) etudiants.push(etudiant2._id);
+        // Ajouter les IDs des étudiants dans le tableau
+        if (idEtudiant1) etudiants.push(idEtudiant1); // Ajouter ID de l'étudiant 1
+        if (idEtudiant2) etudiants.push(idEtudiant2); // Ajouter ID de l'étudiant 2
 
         // Empêcher l'utilisation du même étudiant deux fois
         if (idEtudiant1 && idEtudiant2 && idEtudiant1 === idEtudiant2) {
@@ -226,18 +226,7 @@ export const ajouterSujetPfa = async (req, res) => {
     } else {
       // Si estBinome est faux, gérer un seul étudiant
       if (idEtudiant1) {
-        const etudiant = await userModel.findOne({
-          _id: idEtudiant1,
-          role: "etudiant",
-        });
-
-        if (!etudiant) {
-          return res
-            .status(404)
-            .json({ message: "Étudiant introuvable ou non valide." });
-        }
-
-        etudiants = [etudiant._id];
+        etudiants = [idEtudiant1]; // Ajouter uniquement l'ID de l'étudiant
       }
 
       // Si estBinome est faux et deux identifiants d'étudiants sont fournis
@@ -247,6 +236,18 @@ export const ajouterSujetPfa = async (req, res) => {
             "Seul un étudiant peut être associé lorsque estBinome est faux.",
         });
       }
+    }
+
+    // Vérification si l'un des étudiants est déjà affecté à un autre sujet
+    const etudiantsDejaAffectes = await pfaModel.find({
+      etudiants: { $in: etudiants },
+    });
+
+    if (etudiantsDejaAffectes.length > 0) {
+      return res.status(400).json({
+        message:
+          "Un ou plusieurs étudiants sont déjà affectés à un autre sujet.",
+      });
     }
 
     // Génération du code PFA
@@ -265,6 +266,7 @@ export const ajouterSujetPfa = async (req, res) => {
     };
 
     const codePfa = await generateCodePfa();
+
     // Création d'un sujet PFA
     const nouveauPfa = new pfaModel({
       code_pfa: codePfa,
@@ -274,7 +276,7 @@ export const ajouterSujetPfa = async (req, res) => {
       annee: new Date().getFullYear(),
       estBinome,
       enseignant: req.auth.userId,
-      etudiants, // Utilisation du tableau etudiants
+      etudiants, // Utilisation du tableau d'IDs d'étudiants
     });
 
     // Sauvegarde du sujet PFA
@@ -284,7 +286,7 @@ export const ajouterSujetPfa = async (req, res) => {
     const sujetAvecEnseignant = await pfaModel
       .findById(nouveauPfa._id)
       .populate("enseignant", "nom prenom email") // Ajoutez les champs requis
-      .populate("etudiants", "nom prenom email");
+      .populate("etudiants", "nom prenom email"); // Récupérer les informations des étudiants
 
     if (sujetAvecEnseignant) {
       return res.status(201).json({
@@ -347,7 +349,8 @@ export const getAllPfasByTeacher = async (req, res) => {
     // Récupérer tous les sujets PFA déposés par l'enseignant connecté
     const sujets = await pfaModel
       .find({ enseignant: req.auth.userId })
-      .populate("enseignant", "nom prenom adresseEmail") // Inclut les détails de l'enseignant
+      .populate("enseignant", "nom prenom adresseEmail")
+      .populate("etudiants", "nom prenom") // Inclut les détails de l'enseignant
       .exec();
 
     // Vérifier si des sujets ont été trouvés
@@ -360,13 +363,31 @@ export const getAllPfasByTeacher = async (req, res) => {
     // Retourner les informations des sujets
     res.status(200).json({
       message: "Tous les sujets PFA déposés par l'enseignant.",
-      sujets, // juste afficher les coordonnées du sujets PFA sans les informations de l'enseignant
+      model: sujets, // juste afficher les coordonnées du sujets PFA sans les informations de l'enseignant
     });
   } catch (error) {
     console.error("Erreur lors de la récupération des sujets PFA :", error);
     res.status(500).json({
       message: "Erreur serveur. Veuillez réessayer plus tard.",
     });
+  }
+};
+
+export const getStudentsPfa = async (req, res) => {
+  try {
+    const studentPfas = await User.find({ role: "etudiant", niveau: 2 })
+      .select("nom prenom") // Sélection uniquement de nom et prenom
+      .exec();
+
+    if (!studentPfas || studentPfas.length === 0) {
+      return res.status(404).json({ message: "Aucun étudiant trouvé" });
+    }
+
+    // Retourner la liste directement (tableau d'objets)
+    res.status(200).json(studentPfas);
+  } catch (error) {
+    console.error("Erreur lors de la récupération des étudiants:", error);
+    res.status(500).json({ message: "Erreur interne du serveur" });
   }
 };
 
@@ -404,7 +425,7 @@ export const getPfaByIdForTeacher = async (req, res) => {
     // Retourner les informations sur le sujet
     res.status(200).json({
       message: "Informations sur le sujet PFA.",
-      sujet,
+      model: sujet,
     });
   } catch (error) {
     console.error("Erreur lors de la récupération du sujet PFA :", error);
@@ -417,7 +438,7 @@ export const getPfaByIdForTeacher = async (req, res) => {
 // Contrôleur pour modifier un sujet PFA
 export const modifyPfaSubject = async (req, res) => {
   try {
-    const { id } = req.params; // Récupérer l'ID du sujet depuis les paramètres de la requête
+    const { id } = req.params;
     const {
       titreSujet,
       description,
@@ -427,37 +448,30 @@ export const modifyPfaSubject = async (req, res) => {
       idEtudiant2,
     } = req.body;
 
-    // Vérification du rôle de l'utilisateur (doit être enseignant)
     if (req.auth.role !== "enseignant") {
       return res.status(403).json({
         message: "Accès interdit : uniquement accessible aux enseignants.",
       });
     }
 
-    // Rechercher le sujet PFA par ID
     const sujet = await pfaModel.findById(id);
-
-    // Vérifier si le sujet existe
     if (!sujet) {
       return res.status(404).json({
         message: "Sujet PFA introuvable.",
       });
     }
 
-    // Vérifier si le sujet appartient à l'enseignant connecté
     if (sujet.enseignant.toString() !== req.auth.userId) {
       return res.status(403).json({
         message: "Accès interdit : ce sujet ne vous appartient pas.",
       });
     }
 
-    // Vérification de la période
     const periode = await periodeModel.findOne({ type: "PFA Project" });
-
     if (!periode) {
-      return res
-        .status(404)
-        .json({ message: "Aucune période trouvée pour le PFA." });
+      return res.status(404).json({
+        message: "Aucune période trouvée pour le PFA.",
+      });
     }
 
     const now = new Date();
@@ -467,39 +481,50 @@ export const modifyPfaSubject = async (req, res) => {
       });
     }
 
-    // Mettre à jour les informations du sujet PFA
+    // Mise à jour des champs de base
     if (titreSujet) sujet.titreSujet = titreSujet;
     if (description) sujet.description = description;
     if (technologies) sujet.technologies = technologies;
     if (estBinome !== undefined) sujet.estBinome = estBinome;
 
+    // Traitement optionnel des étudiants
     let etudiants = [];
 
-    // Si estBinome est vrai, essayer de trouver deux étudiants si les informations sont données
     if (estBinome) {
-      const etudiant1 = await userModel.findOne({
-        _id: idEtudiant1,
-        role: "etudiant",
-      });
-      const etudiant2 = await userModel.findOne({
-        _id: idEtudiant2,
-        role: "etudiant",
-      });
+      if (idEtudiant1 && idEtudiant2) {
+        if (idEtudiant1 === idEtudiant2) {
+          return res.status(400).json({
+            message:
+              "Les deux identifiants d'étudiants doivent être différents.",
+          });
+        }
 
-      if (!etudiant1 || !etudiant2) {
-        return res.status(404).json({
-          message: "Un ou les deux étudiants sont introuvables ou non valides.",
+        const etudiant1 = await userModel.findOne({
+          _id: idEtudiant1,
+          role: "etudiant",
         });
-      }
-      // Empêcher l'utilisation du même étudiant deux fois
-      if (idEtudiant1 === idEtudiant2) {
-        return res.status(400).json({
-          message: "Les deux identifiants d'étudiants doivent être différents.",
+        const etudiant2 = await userModel.findOne({
+          _id: idEtudiant2,
+          role: "etudiant",
         });
+
+        if (!etudiant1 || !etudiant2) {
+          return res.status(404).json({
+            message:
+              "Un ou les deux étudiants sont introuvables ou non valides.",
+          });
+        }
+
+        etudiants = [etudiant1._id, etudiant2._id];
       }
-      etudiants = [etudiant1._id, etudiant2._id];
     } else {
-      // Si estBinome est faux, rechercher un seul étudiant si les informations sont données
+      if (idEtudiant1 && idEtudiant2) {
+        return res.status(400).json({
+          message:
+            "Seul un étudiant peut être associé lorsque estBinome est faux.",
+        });
+      }
+
       if (idEtudiant1) {
         const etudiant = await userModel.findOne({
           _id: idEtudiant1,
@@ -507,31 +532,37 @@ export const modifyPfaSubject = async (req, res) => {
         });
 
         if (!etudiant) {
-          return res
-            .status(404)
-            .json({ message: "Étudiant introuvable ou non valide." });
+          return res.status(404).json({
+            message: "Étudiant introuvable ou non valide.",
+          });
         }
 
         etudiants = [etudiant._id];
       }
+    }
 
-      // Si estBinome est faux et deux identifiants d'étudiants sont fournis
-      if (idEtudiant1 && idEtudiant2) {
+    // ✅ Vérifier l'affectation uniquement si des étudiants sont fournis
+    if (etudiants.length > 0) {
+      const etudiantsDejaAffectes = await pfaModel.find({
+        _id: { $ne: sujet._id }, // exclure le sujet actuel
+        etudiants: { $in: etudiants },
+      });
+
+      if (etudiantsDejaAffectes.length > 0) {
         return res.status(400).json({
           message:
-            "Seul un étudiant peut être associé lorsque estBinome est faux.",
+            "Un ou plusieurs étudiants sont déjà affectés à un autre sujet.",
         });
       }
-    }
-    // Mettre à jour le tableau des étudiants dans le sujet
-    sujet.etudiants = etudiants;
 
-    // Sauvegarder les modifications du sujet
+      sujet.etudiants = etudiants;
+    }
+
     await sujet.save();
 
     res.status(200).json({
       message: "Sujet PFA modifié avec succès.",
-      sujet,
+      model: sujet,
     });
   } catch (error) {
     console.error(
@@ -606,6 +637,40 @@ export const deletePfa = async (req, res) => {
   }
 };
 
+export const getSoutenancesByTeacher = async (req, res) => {
+  try {
+    if (req.auth.role !== "enseignant") {
+      return res.status(403).json({
+        message: "Accès interdit : uniquement accessible aux enseignants.",
+      });
+    }
+
+    const userId = req.auth.userId;
+
+    // Récupérer les soutenances où il est rapporteur OU encadrant
+    const soutenances = await soutenancePfaModel
+      .find({
+        isPublished: true,
+        $or: [{ enseignant: userId }, { rapporteur: userId }],
+      })
+      .populate("etudiants", "nom prenom")
+      .populate("enseignant", "nom prenom")
+      .populate("rapporteur", "nom prenom")
+      .populate("pfa", "code_pfa")
+      .exec();
+
+    res.status(200).json({
+      message: "Soutenances où l'enseignant est impliqué.",
+      model: soutenances,
+    });
+  } catch (error) {
+    console.error("Erreur lors de la récupération des soutenances :", error);
+    res.status(500).json({
+      message: "Erreur serveur. Veuillez réessayer plus tard.",
+    });
+  }
+};
+
 export const getPfasByTeacherForStudents = async (req, res) => {
   try {
     // Vérification du rôle de l'utilisateur (doit être étudiant)
@@ -620,36 +685,48 @@ export const getPfasByTeacherForStudents = async (req, res) => {
       .find({ role: "enseignant" })
       .select("_id nom prenom adresseEmail");
 
-    // Récupérer les sujets PFA par enseignant
-    const sujetsParEnseignant = await Promise.all(
+    // Récupérer les sujets PFA par enseignant et reformater les données
+    const enseignantsAvecSujets = await Promise.all(
       enseignants.map(async (enseignant) => {
         const sujets = await pfaModel
           .find({ enseignant: enseignant._id })
           .select(
             "titreSujet description technologies estBinome etatAffectation"
           );
-        return {
-          enseignant,
-          sujets,
-        };
+
+        if (sujets.length > 0) {
+          return {
+            enseignant: {
+              _id: enseignant._id,
+              nom: enseignant.nom,
+              prenom: enseignant.prenom,
+              adresseEmail: enseignant.adresseEmail,
+            },
+            sujets: sujets.map((sujet) => ({
+              titre: sujet.titreSujet,
+              description: sujet.description,
+              technologies: sujet.technologies,
+              estBinome: sujet.estBinome,
+              etatAffectation: sujet.etatAffectation,
+            })),
+          };
+        }
       })
     );
 
-    // Vérification si tous les sujets sont vides
-    const enseignantsAvecSujets = sujetsParEnseignant.filter(
-      (enseignant) => enseignant.sujets.length > 0
-    );
+    // Filtrer les enseignants qui n'ont pas de sujets
+    const sujetsParEnseignant = enseignantsAvecSujets.filter(Boolean);
 
-    if (enseignantsAvecSujets.length === 0) {
+    if (sujetsParEnseignant.length === 0) {
       return res.status(404).json({
         message: "Aucun sujet PFA trouvé.",
       });
     }
 
-    // Retourner les informations des sujets PFA groupées par enseignant
+    // Retourner les données formatées
     res.status(200).json({
       message: "Liste des sujets PFA par enseignant.",
-      data: enseignantsAvecSujets,
+      data: sujetsParEnseignant,
     });
   } catch (error) {
     console.error("Erreur lors de la récupération des sujets PFA :", error);
@@ -805,7 +882,7 @@ export const publishPfas = async (req, res) => {
 
       if (foundPfas.length === 0) {
         return res.status(200).json({
-          message: "Aucun PFA à publier.",
+          message: "Aucun PFA trouvé.",
         });
       }
 
@@ -1008,27 +1085,55 @@ export const sendListePfa = async (req, res) => {
 export const fetchPublishedPfa = async (req, res) => {
   try {
     const studentId = req.auth.userId;
+    const userRole = req.auth.role;
 
-    const foundEtudiant = await userModel.findOne({
-      $and: [{ _id: studentId }, { niveau: 2 }],
-    });
+    const baseQuery = pfaModel
+      .find({ etatDepot: "published" })
+      .populate("enseignant")
+      .populate("etudiants", "nom prenom");
 
-    if (!foundEtudiant) {
-      return res
-        .status(400)
-        .json({ message: " pas encore des étudiants en 2 eme " });
+    // Si l'utilisateur est un administrateur
+    if (userRole === "admin") {
+      const sujetsPfa = await baseQuery;
+
+      return res.status(200).json({
+        success: true,
+        model: sujetsPfa,
+        message: "Les sujets PFAs à affecter",
+      });
     }
-    const sujetsPfa = await pfaModel.find({
-      etatDepot: "published",
-    });
 
-    if (sujetsPfa.length === 0) {
-      res.status(400).json({ message: " pas encore de sujets pfa publiés" });
-    } else {
-      res
-        .status(200)
-        .json({ model: sujetsPfa, message: " Les sujets pfas publiés" });
+    // Si l'utilisateur est un étudiant
+    if (userRole === "etudiant") {
+      const foundEtudiant = await userModel.findOne({
+        _id: studentId,
+        niveau: 2,
+      });
+
+      if (!foundEtudiant) {
+        return res
+          .status(400)
+          .json({ message: "Pas encore des étudiants en 2ème année" });
+      }
+
+      const sujetsPfa = await baseQuery;
+
+      if (!sujetsPfa.length) {
+        return res
+          .status(400)
+          .json({ message: "Pas encore de sujets PFA publiés" });
+      }
+
+      return res.status(200).json({
+        success: true,
+        model: sujetsPfa,
+        message: "Les sujets PFAs publiés",
+      });
     }
+
+    return res.status(403).json({
+      message: "Accès non autorisé",
+    });
   } catch (error) {
     res.status(500).json({
       message: error.message,
@@ -1036,10 +1141,120 @@ export const fetchPublishedPfa = async (req, res) => {
   }
 };
 
+// Fonction pour récupérer les codes PFA des sujets publiés
+export const fetchPublishedPfaCodes = async (req, res) => {
+  try {
+    const studentId = req.auth.userId;
+
+    // Vérification de l'étudiant en 2ème année
+    const foundEtudiant = await userModel.findOne({
+      _id: studentId,
+      niveau: 2,
+    });
+
+    if (!foundEtudiant) {
+      return res
+        .status(400)
+        .json({ message: "Pas encore des étudiants en 2ème année" });
+    }
+
+    // Récupération des sujets PFA publiés
+    const sujetsPfa = await pfaModel
+      .find({ etatDepot: "published" }) // Sélectionne les sujets avec état "published"
+      .populate("enseignant"); // Ici, tu peux aussi peupler d'autres informations si nécessaire
+
+    // Vérification s'il y a des sujets PFA publiés
+    if (sujetsPfa.length === 0) {
+      return res
+        .status(400)
+        .json({ message: "Pas encore de sujets PFA publiés" });
+    }
+
+    // Récupérer les codes PFA des sujets publiés
+    const pfaCodes = sujetsPfa.map((sujet) => sujet.code_pfa); // Utilisation de `code_pfa`
+
+    // Retourne les codes des sujets PFA publiés
+    res.status(200).json({
+      codes: pfaCodes, // Liste des codes des sujets PFA publiés
+      message: "Les codes des sujets PFA publiés",
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: error.message,
+    });
+  }
+};
+
+export const getPfaChoicesByStudent = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    // Récupérer l'étudiant connecté
+    const user = await userModel
+      .findOne({
+        _id: req.user.id, // ou req.user._id selon ton middleware
+        role: "etudiant", // filtre rôle
+        niveau: 2, // filtre niveau
+      })
+      .populate({
+        path: "pfas",
+        populate: { path: "enseignant" }, // si chaque PFA contient un enseignant référencé
+      });
+
+    console.log("user", user);
+    res.json({ choices: user.pfas }); // Liste des sujets choisis
+  } catch (error) {
+    console.error(
+      "Erreur lors de la récupération des choix de l'étudiant",
+      error
+    );
+    res.status(500).json({ error: "Erreur serveur" });
+  }
+};
+
+// Backend - Route pour récupérer les utilisateurs (étudiants) au niveau 2 et leur binôme
+export const fetchStudentNiveau = async (req, res) => {
+  try {
+    // Récupérer uniquement les étudiants ayant le niveau 2
+    const users = await userModel
+      .find({ role: "etudiant", niveau: 2 })
+      .select("nom prenom niveau");
+
+    // Retourner la liste des utilisateurs avec uniquement les informations nécessaires
+    res.json({ users });
+  } catch (err) {
+    console.error(err);
+    res
+      .status(500)
+      .json({ message: "Erreur lors de la récupération des utilisateurs." });
+  }
+};
+
 export const choosePfaSubjects = async (req, res) => {
   try {
     const studentId = req.auth.userId; // ID de l'étudiant
     const { choices, binomeId, acceptedPfa } = req.body;
+    const currentPeriod = await periodeModel.findOne({
+      type: "PFA CHOICE",
+    });
+
+    if (!currentPeriod) {
+      return res.status(400).json({
+        success: false,
+        message: "La période de choix de PFA n'est pas ouverte.",
+      });
+    }
+
+    const currentDate = new Date();
+    if (
+      currentPeriod.Date_Fin_choix &&
+      currentDate > currentPeriod.Date_Fin_choix
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "La période est fermée. Vous ne pouvez plus faire de choix.",
+      });
+    }
 
     const foundEtudiant = await userModel.findOne({
       $and: [{ _id: studentId }, { niveau: 2 }],
@@ -1178,21 +1393,9 @@ export const choosePfaSubjects = async (req, res) => {
           message: `Le sujet ${choice.codePfa} est déjà affecté.`,
         });
       }
-
-      // Vérifier si le sujet est déjà accepté
-      if (
-        pfa.choices.some((c) => c.acceptedPfa?.etudiantsAcceptedIds?.length > 0)
-      ) {
-        if (acceptedPfa === choice.codePfa) {
-          return res.status(400).json({
-            success: false,
-            message: `Le sujet ${choice.codePfa} est déjà accepté par un autre étudiant ou binôme.`,
-          });
-        }
-      }
     }
 
-    // Enregistrer les choix
+    // Mise à jour des choix et de l'assignation du binôme
     await Promise.all(
       choices.map(async (choice) => {
         const pfa = await pfaModel.findOne({ code_pfa: choice.codePfa });
@@ -1236,32 +1439,93 @@ export const choosePfaSubjects = async (req, res) => {
             }
           );
         }
+
+        // Mise à jour du binôme dans le sujet
+        if (binomeId && pfa.estBinome) {
+          await pfaModel.updateOne(
+            { code_pfa: choice.codePfa },
+            { $set: { "binomeIds.binomeId": binomeId } }
+          );
+        }
       })
     );
 
+    // Mise à jour du champ pfas dans le modèle user avec les ObjectId des PFA
+    await userModel.updateOne(
+      { _id: studentId },
+      {
+        $addToSet: {
+          pfas: {
+            $each: await Promise.all(
+              choices.map(async (choice) => {
+                const pfa = await pfaModel.findOne({
+                  code_pfa: choice.codePfa,
+                });
+
+                if (pfa) {
+                  return pfa._id;
+                }
+                return null;
+              })
+            ).then((ids) => ids.filter((id) => id !== null)),
+          },
+        },
+      }
+    );
+
+    // Gestion du sujet accepté
     // Gestion du sujet accepté
     if (acceptedPfa) {
-      const pfa = await pfaModel.findOne({ code_pfa: acceptedPfa });
-      if (
-        pfa.choices.some((c) => c.acceptedPfa?.etudiantsAcceptedIds?.length > 0)
-      ) {
+      const pfa = await pfaModel.findOne({ code_pfa: acceptedPfa }).lean();
+
+      if (!pfa) {
+        return res.status(404).json({
+          success: false,
+          message: `Le sujet ${acceptedPfa} est introuvable.`,
+        });
+      }
+
+      // Vérifier qu'il n'est pas déjà accepté par d'autres
+      const dejaAccepte = pfa.choices.some(
+        (c) => c.acceptedPfa?.etudiantsAcceptedIds?.length > 0
+      );
+
+      if (dejaAccepte) {
         return res.status(400).json({
           success: false,
           message: `Le sujet ${acceptedPfa} est déjà accepté par un autre étudiant ou binôme.`,
         });
       }
 
-      const acceptedStudents = [studentId];
+      // Si l'enseignant a déjà défini les étudiants, il faut que le(s) demandeur(s) en fassent partie
+      const etudiantsAffectes = (pfa.etudiants || []).map((id) =>
+        id.toString()
+      );
+      const demandeurs = [studentId];
       if (binomeId) {
-        acceptedStudents.push(binomeId);
+        demandeurs.push(binomeId);
       }
 
+      const enseignantsOntDefiniEtudiants = etudiantsAffectes.length > 0;
+      if (enseignantsOntDefiniEtudiants) {
+        const tousSontDansListe = demandeurs.every((id) =>
+          etudiantsAffectes.includes(id)
+        );
+
+        if (!tousSontDansListe) {
+          return res.status(403).json({
+            success: false,
+            message: `Vous (ou votre binôme) n'avez pas été sélectionnés par l'enseignant pour ce sujet.`,
+          });
+        }
+      }
+
+      // Mettre à jour le champ acceptedPfa dans la bonne entrée de choix
       await pfaModel.updateOne(
         { code_pfa: acceptedPfa },
         {
           $set: {
-            "choices.$[elem].acceptedPfa.etudiantsAcceptedIds":
-              acceptedStudents,
+            "choices.$[elem].acceptedPfa.etudiantsAcceptedIds": demandeurs,
           },
         },
         {
@@ -1280,6 +1544,120 @@ export const choosePfaSubjects = async (req, res) => {
       success: false,
       message: "Une erreur est survenue lors de l'enregistrement des choix.",
     });
+  }
+};
+
+// Route pour récupérer les sujets et les choix des étudiants
+export const fetchPfaChoices = async (req, res) => {
+  try {
+    const studentId = req.auth.userId; // ID de l'utilisateur connecté (étudiant)
+
+    // Récupérer tous les sujets et leurs choix avec les informations des étudiants (nom et prénom)
+    const sujets = await pfaModel
+      .find({ etatDepot: "published" })
+      .populate("choices.etudiantsIds", "nom prenom") // Peupler 'etudiantsIds' avec 'nom' et 'prenom'
+      .populate("choices.binomeIds.etudiantId", "nom prenom") // Peupler le premier étudiant du binôme
+      .populate("choices.binomeIds.binomeId", "nom prenom"); // Peupler le deuxième étudiant du binôme
+
+    // Si c'est un étudiant, on filtre pour n'afficher que ses choix
+    const isStudent = req.auth.role === "etudiant"; // Vérifier si l'utilisateur est un étudiant
+    if (isStudent) {
+      const sujetsPourEtudiant = sujets.map((sujet) => {
+        const choicesForStudent = sujet.choices.filter(
+          (choice) =>
+            choice.etudiantsIds.some(
+              (etudiant) => etudiant._id.toString() === studentId
+            ) ||
+            choice.binomeIds.some(
+              (binome) =>
+                binome.etudiantId.toString() === studentId ||
+                binome.binomeId.toString() === studentId
+            )
+        );
+        return {
+          ...sujet.toObject(),
+          choices: choicesForStudent,
+        };
+      });
+      return res.status(200).json({ sujets: sujetsPourEtudiant });
+    }
+
+    // Si c'est un admin, retourner tous les sujets et leurs choix
+    return res.status(200).json({ sujets });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+export const fetchPfaChoiceById = async (req, res) => {
+  try {
+    const sujetId = req.params.id; // ID du sujet passé dans l'URL
+    const studentId = req.auth.userId; // ID de l'utilisateur connecté (étudiant)
+
+    // Récupérer le sujet par ID, avec les informations des étudiants dans etudiantsIds et l'enseignant
+    const sujet = await pfaModel
+      .findById(sujetId)
+      .populate("choices.binomeIds.etudiantId", "nom prenom") // Peupler les binômes avec nom et prénom
+      .populate("choices.binomeIds.binomeId", "nom prenom") // Peupler les binômes avec nom et prénom
+      .populate("enseignant", "nom prenom"); // Peupler l'enseignant avec nom et prénom
+
+    // Si le sujet n'est pas trouvé
+    if (!sujet) {
+      return res.status(404).json({ message: "Sujet non trouvé" });
+    }
+
+    // Récupérer les étudiants associés à ce sujet en utilisant les etudiantsIds
+    const etudiantsIds = sujet.choices
+      .map((choice) => choice.etudiantsIds)
+      .flat(); // Récupérer tous les étudiants (en cas de plusieurs choix)
+
+    const etudiants = await User.find({ _id: { $in: etudiantsIds } }).select(
+      "nom prenom"
+    );
+
+    // Ajouter les informations des étudiants dans chaque choix
+    const choicesWithStudents = sujet.choices.map((choice) => {
+      const students = choice.etudiantsIds.map((etudiantId) =>
+        etudiants.find(
+          (etudiant) => etudiant._id.toString() === etudiantId.toString()
+        )
+      );
+      return {
+        ...choice.toObject(),
+        etudiantsIds: students,
+      };
+    });
+
+    // Si l'utilisateur est un étudiant, on filtre pour n'afficher que ses choix
+    const isStudent = req.auth.role === "etudiant"; // Vérifier si l'utilisateur est un étudiant
+    if (isStudent) {
+      const choicesForStudent = choicesWithStudents.filter(
+        (choice) =>
+          choice.etudiantsIds.some(
+            (etudiant) => etudiant._id.toString() === studentId
+          ) ||
+          choice.binomeIds.some(
+            (binome) =>
+              binome.etudiantId.toString() === studentId ||
+              binome.binomeId.toString() === studentId
+          )
+      );
+      // Retourner le sujet avec les choix filtrés
+      return res.status(200).json({
+        sujet: {
+          ...sujet.toObject(),
+          choices: choicesForStudent,
+          enseignant: sujet.enseignant, // Ajouter les informations de l'enseignant
+        },
+      });
+    }
+
+    // Si c'est un admin, retourner le sujet complet avec tous les choix
+    return res.status(200).json({
+      sujet: { ...sujet.toObject(), choices: choicesWithStudents },
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
   }
 };
 
@@ -1385,30 +1763,31 @@ export const updateAcceptedPfa = async (req, res) => {
 
 export const automatedAssignment = async (req, res) => {
   try {
-    // Vérifier la période pour le type "PFA Project"
-    const periode = await periodeModel.findOne({ type: "PFA Project" });
+    const periode = await periodeModel.findOne({ type: "PFA CHOICE" });
     if (!periode) {
       return res.status(400).json({
         success: false,
-        message: "Période introuvable pour le type 'PFA Project'.",
+        message: "Période introuvable pour le type 'PFA CHOICE'.",
       });
     }
 
-    // Vérifier si la période de dépôt est terminée
     const currentDate = new Date();
-    if (periode.Date_Fin_depot && currentDate <= periode.Date_Fin_depot) {
+    if (periode.Date_Fin_choix && currentDate <= periode.Date_Fin_choix) {
       return res.status(400).json({
         success: false,
         message:
           "La période de dépôt est encore ouverte. L'affectation automatique n'est pas autorisée.",
       });
     }
-    const pfas = await pfaModel.find({ etatDepot: "published" });
+
+    const pfas = await pfaModel.find({
+      etatDepot: "published",
+      $or: [{ etatAffectation: "not affected" }],
+    });
     let affectedCount = 0;
     let assignedStudents = new Set();
-    let notAssignedSubjects = []; // Nouveau tableau pour les sujets non affectés
+    let notAssignedSubjects = [];
 
-    // Récupérer tous les étudiants ayant fait des choix (sans doublons)
     let nonAffectedStudents = new Set(
       pfas.flatMap((pfa) =>
         pfa.choices.flatMap((choice) =>
@@ -1418,238 +1797,122 @@ export const automatedAssignment = async (req, res) => {
     );
 
     for (const pfa of pfas) {
-      // Ajouter les étudiants déjà affectés
+      // ✅ CAS 1 : Affectation manuelle vérifiée
       if (pfa.etudiants?.length) {
-        pfa.etudiants.forEach((id) => assignedStudents.add(id.toString()));
-        await pfaModel.updateOne(
-          { code_pfa: pfa.code_pfa },
-          { $set: { etatAffectation: "affected" } }
+        const acceptedIds = new Set(
+          pfa.choices
+            .flatMap((choice) => choice.acceptedPfa?.etudiantsAcceptedIds || [])
+            .map((id) => id.toString())
         );
-        affectedCount++;
-        continue;
-      }
 
-      // Vérifier si un choix a été explicitement accepté pour ce sujet
-      const acceptedChoice = pfa.choices.find(
-        (choice) => choice.acceptedPfa?.etudiantsAcceptedIds?.length
-      );
+        const areAllAccepted = pfa.etudiants.every((id) =>
+          acceptedIds.has(id.toString())
+        );
 
-      if (acceptedChoice) {
-        // Récupérer les étudiants disponibles spécifiés dans acceptedPfa
-        const availableStudents =
-          acceptedChoice.acceptedPfa.etudiantsAcceptedIds.filter(
-            (id) => !assignedStudents.has(id.toString())
+        const alreadyAssigned = pfa.etudiants.some((id) =>
+          assignedStudents.has(id.toString())
+        );
+
+        if (areAllAccepted && !alreadyAssigned) {
+          pfa.etudiants.forEach((id) => assignedStudents.add(id.toString()));
+          await pfaModel.updateOne(
+            { code_pfa: pfa.code_pfa },
+            { $set: { etatAffectation: "affected" } }
+          );
+          await userModel.updateOne(
+            { _id: { $in: pfa.etudiants } },
+            { $set: { pfa: pfa._id } }
           );
 
-        if (availableStudents.length) {
-          // Si le sujet est en binôme
-          if (pfa.estBinome) {
-            // Récupérer les binômes valides dans les étudiants acceptés
-            const availableBinomes =
-              acceptedChoice.acceptedPfa.binomeIds?.filter(
-                (binome) =>
-                  availableStudents.includes(binome.etudiantId) &&
-                  availableStudents.includes(binome.binomeId) &&
-                  !assignedStudents.has(binome.etudiantId.toString()) &&
-                  !assignedStudents.has(binome.binomeId.toString())
-              );
+          affectedCount++;
+          continue;
+        } else {
+          await pfaModel.updateOne(
+            { code_pfa: pfa.code_pfa },
+            { $set: { etatAffectation: "not affected" } }
+          );
+          notAssignedSubjects.push(pfa);
 
-            if (availableBinomes?.length) {
-              const selectedBinome =
-                availableBinomes[
-                  Math.floor(Math.random() * availableBinomes.length)
-                ];
-
-              // Mettre à jour le sujet avec les étudiants du binôme accepté
-              await pfaModel.updateOne(
-                { code_pfa: pfa.code_pfa },
-                {
-                  $set: {
-                    etatAffectation: "affected",
-                    etudiants: [
-                      selectedBinome.etudiantId,
-                      selectedBinome.binomeId,
-                    ],
-                  },
-                }
-              );
-
-              // Ajouter ces étudiants à la liste des étudiants affectés
-              assignedStudents.add(selectedBinome.etudiantId.toString());
-              assignedStudents.add(selectedBinome.binomeId.toString());
-              affectedCount++;
-              continue; // Passer au sujet suivant
-            }
-          } else {
-            // Si le sujet est individuel
-            await pfaModel.updateOne(
-              { code_pfa: pfa.code_pfa },
-              {
-                $set: {
-                  etatAffectation: "affected",
-                  etudiants: availableStudents,
-                },
-              }
-            );
-
-            // Ajouter ces étudiants à la liste des étudiants affectés
-            availableStudents.forEach((id) =>
-              assignedStudents.add(id.toString())
-            );
-            affectedCount++;
-            continue; // Passer au sujet suivant
-          }
+          continue;
         }
       }
 
-      // Gérer les choix de priorité 1
+      // ✅ CAS 2 : Affectation automatique si un seul choix de priorité 1 ET pas d'acceptation
       const priority1Choices = pfa.choices.filter(
         (choice) => choice.priority === 1
       );
 
-      if (priority1Choices.length) {
-        const selectedChoice =
-          priority1Choices.length === 1
-            ? priority1Choices[0]
-            : priority1Choices[
-                Math.floor(Math.random() * priority1Choices.length)
-              ];
+      if (pfa.etudiants.length === 0 && priority1Choices.length === 1) {
+        const hasAccepted = pfa.choices.some(
+          (choice) => choice.acceptedPfa?.etudiantsAcceptedIds?.length > 0
+        );
+
+        if (hasAccepted) {
+          await pfaModel.updateOne(
+            { code_pfa: pfa.code_pfa },
+            { $set: { etatAffectation: "not affected" } }
+          );
+          notAssignedSubjects.push(pfa);
+          continue;
+        }
+
+        const choice = priority1Choices[0];
 
         if (pfa.estBinome) {
-          // Projet en binôme
-          const availableBinomes = selectedChoice.binomeIds.filter(
+          const availableBinomes = choice.binomeIds.filter(
             (binome) =>
               !assignedStudents.has(binome.etudiantId.toString()) &&
               !assignedStudents.has(binome.binomeId.toString())
           );
 
-          if (availableBinomes.length) {
-            const selectedBinome =
-              availableBinomes[
-                Math.floor(Math.random() * availableBinomes.length)
-              ];
+          if (availableBinomes.length === 1) {
+            const binome = availableBinomes[0];
             await pfaModel.updateOne(
               { code_pfa: pfa.code_pfa },
               {
                 $set: {
                   etatAffectation: "affected",
-                  etudiants: [
-                    selectedBinome.etudiantId,
-                    selectedBinome.binomeId,
-                  ],
+                  etudiants: [binome.etudiantId, binome.binomeId],
                 },
               }
             );
-            assignedStudents.add(selectedBinome.etudiantId.toString());
-            assignedStudents.add(selectedBinome.binomeId.toString());
+            assignedStudents.add(binome.etudiantId.toString());
+            assignedStudents.add(binome.binomeId.toString());
             affectedCount++;
             continue;
           }
         } else {
-          // Projet individuel
-          const availableStudents = selectedChoice.etudiantsIds.filter(
+          const availableStudents = choice.etudiantsIds.filter(
             (id) => !assignedStudents.has(id.toString())
           );
 
-          if (availableStudents.length) {
-            const selectedStudent =
-              availableStudents[
-                Math.floor(Math.random() * availableStudents.length)
-              ];
+          if (availableStudents.length === 1) {
+            const student = availableStudents[0];
             await pfaModel.updateOne(
               { code_pfa: pfa.code_pfa },
               {
                 $set: {
                   etatAffectation: "affected",
-                  etudiants: [selectedStudent],
+                  etudiants: [student],
                 },
               }
             );
-            assignedStudents.add(selectedStudent.toString());
+            assignedStudents.add(student.toString());
             affectedCount++;
             continue;
           }
         }
       }
 
-      // Parcourir les choix de priorité 2 et 3
-      let assigned = false;
-      for (let priority = 2; priority <= 3; priority++) {
-        for (const choice of pfa.choices.filter(
-          (c) => c.priority === priority
-        )) {
-          if (pfa.estBinome) {
-            // Gestion binôme
-            const availableBinomes = choice.binomeIds.filter(
-              (binome) =>
-                !assignedStudents.has(binome.etudiantId.toString()) &&
-                !assignedStudents.has(binome.binomeId.toString())
-            );
-
-            if (availableBinomes.length) {
-              const selectedBinome =
-                availableBinomes[
-                  Math.floor(Math.random() * availableBinomes.length)
-                ];
-              await pfaModel.updateOne(
-                { code_pfa: pfa.code_pfa },
-                {
-                  $set: {
-                    etatAffectation: "affected",
-                    etudiants: [
-                      selectedBinome.etudiantId,
-                      selectedBinome.binomeId,
-                    ],
-                  },
-                }
-              );
-              assignedStudents.add(selectedBinome.etudiantId.toString());
-              assignedStudents.add(selectedBinome.binomeId.toString());
-              affectedCount++;
-              assigned = true;
-              break;
-            }
-          } else {
-            // Gestion individuelle
-            const availableStudents = choice.etudiantsIds.filter(
-              (id) => !assignedStudents.has(id.toString())
-            );
-
-            if (availableStudents.length) {
-              const selectedStudent =
-                availableStudents[
-                  Math.floor(Math.random() * availableStudents.length)
-                ];
-              await pfaModel.updateOne(
-                { code_pfa: pfa.code_pfa },
-                {
-                  $set: {
-                    etatAffectation: "affected",
-                    etudiants: [selectedStudent],
-                  },
-                }
-              );
-              assignedStudents.add(selectedStudent.toString());
-              affectedCount++;
-              assigned = true;
-              break;
-            }
-          }
-        }
-        if (assigned) break;
-      }
-
-      // Marquer le PFA comme non assigné si aucun étudiant n'a été trouvé
-      if (!assigned) {
-        notAssignedSubjects.push(pfa);
-        await pfaModel.updateOne(
-          { code_pfa: pfa.code_pfa },
-          { $set: { etatAffectation: "not affected" } }
-        );
-      }
+      // ❌ Aucun cas valide, sujet non affecté
+      notAssignedSubjects.push(pfa);
+      await pfaModel.updateOne(
+        { code_pfa: pfa.code_pfa },
+        { $set: { etatAffectation: "not affected" } }
+      );
     }
 
-    // Mettre à jour la liste des étudiants non affectés
+    // Liste finale des étudiants non affectés
     nonAffectedStudents = new Set(
       [...nonAffectedStudents].filter((id) => !assignedStudents.has(id))
     );
@@ -1661,6 +1924,7 @@ export const automatedAssignment = async (req, res) => {
       notAssignedSubjects,
     });
   } catch (error) {
+    console.error("Erreur dans automatedAssignment :", error.message);
     return res.status(500).json({
       success: false,
       message: "Une erreur est survenue lors de l'affectation automatique.",
@@ -1670,17 +1934,17 @@ export const automatedAssignment = async (req, res) => {
 
 export const manualAssignment = async (req, res) => {
   try {
-    const periode = await periodeModel.findOne({ type: "PFA Project" });
+    const periode = await periodeModel.findOne({ type: "PFA CHOICE" });
     if (!periode) {
       return res.status(400).json({
         success: false,
-        message: "Période introuvable pour le type 'PFA Project'.",
+        message: "Période introuvable pour le type 'PFA CHOICE'.",
       });
     }
 
     // Vérifier si la période de dépôt est terminée
     const currentDate = new Date();
-    if (periode.Date_Fin_depot && currentDate <= periode.Date_Fin_depot) {
+    if (periode.Date_Fin_choix && currentDate <= periode.Date_Fin_choix) {
       return res.status(400).json({
         success: false,
         message:
@@ -1792,7 +2056,7 @@ export const manualAssignment = async (req, res) => {
     return res.status(200).json({
       success: true,
       message: "PFA affecté avec succès.",
-      pfa,
+      model: pfa,
     });
   } catch (error) {
     return res.status(500).json({
@@ -1801,13 +2065,22 @@ export const manualAssignment = async (req, res) => {
     });
   }
 };
+
 export const ajouterSoutenance = async (req, res) => {
   try {
+    // Étape 0 : Vérification si les soutenances sont déjà créées
+    const soutenancesExistantes = await soutenancePfaModel.find({});
+    if (soutenancesExistantes.length > 0) {
+      return res.status(400).json({
+        message: "Les soutenances ont déjà été créées.",
+      });
+    }
+
     // Étape 1 : Récupérer les sujets PFA publiés avec les enseignants
     const sujets = await pfaModel
       .find({ etatAffectation: "published" })
       .populate("enseignant etudiants", "nom prenom _id")
-      .select("titreSujet enseignant etudiants");
+      .select("code_pfa enseignant etudiants");
 
     if (!sujets.length) {
       return res.status(404).json({
@@ -1816,14 +2089,14 @@ export const ajouterSoutenance = async (req, res) => {
     }
 
     // Étape 2 : Vérification des étudiants associés à plusieurs sujets PFA
-    const etudiantSujetMap = new Map(); // Stocke l'association étudiant -> sujet
+    const etudiantSujetMap = new Map();
 
     for (const sujet of sujets) {
       for (const etudiant of sujet.etudiants) {
         if (etudiantSujetMap.has(etudiant._id.toString())) {
           const autreSujet = etudiantSujetMap.get(etudiant._id.toString());
           return res.status(400).json({
-            message: `L'étudiant ${etudiant.nom} ${etudiant.prenom} est déjà associé au sujet PFA "${autreSujet.titreSujet}".`,
+            message: `L'étudiant ${etudiant.nom} ${etudiant.prenom} est déjà associé au sujet "${autreSujet.code_pfa}".`,
           });
         }
         etudiantSujetMap.set(etudiant._id.toString(), sujet);
@@ -1840,7 +2113,6 @@ export const ajouterSoutenance = async (req, res) => {
       sujetsParEnseignant[enseignantId].push(sujet);
     });
 
-    // Étape 4 : Assigner chaque enseignant comme rapporteur pour les sujets de l'autre
     const enseignantsIds = Object.keys(sujetsParEnseignant);
     if (enseignantsIds.length < 2) {
       return res.status(400).json({
@@ -1849,22 +2121,21 @@ export const ajouterSoutenance = async (req, res) => {
       });
     }
 
+    // Étape 4 : Création des soutenances
     const soutenancesCrees = [];
-    const dateInitiale = moment().add(7, "days"); // Soutenances prévues dans une semaine
-    const heureDebutJournee = 8 * 60; // 09:00 en minutes
-    const dureeSoutenance = 30; // 30 minutes par soutenance
+    const dateInitiale = moment().add(7, "days");
+    const heureDebutJournee = 8 * 60;
+    const dureeSoutenance = 30;
 
     let dateSoutenance = moment(dateInitiale);
     let heureActuelle = heureDebutJournee;
 
     for (const enseignantId of enseignantsIds) {
       const sujetsEncadres = sujetsParEnseignant[enseignantId];
-
-      // Trouver le rapporteur (l'autre enseignant)
       const autresEnseignants = enseignantsIds.filter(
         (id) => id !== enseignantId
       );
-      const rapporteurId = autresEnseignants[0]; // Choix simple car deux enseignants seulement
+      const rapporteurId = autresEnseignants[0];
 
       for (const sujet of sujetsEncadres) {
         const etudiants = sujet.etudiants.map((e) => e._id);
@@ -1898,7 +2169,6 @@ export const ajouterSoutenance = async (req, res) => {
             continue;
           }
 
-          // Vérifier conflits horaires
           const conflitHoraire = await soutenancePfaModel.findOne({
             date_soutenance: dateSoutenance.toDate(),
             salle: "Salle 1",
@@ -1920,7 +2190,6 @@ export const ajouterSoutenance = async (req, res) => {
             continue;
           }
 
-          // Créer la soutenance
           const soutenance = new soutenancePfaModel({
             pfa: sujet._id,
             etudiants,
@@ -1940,8 +2209,8 @@ export const ajouterSoutenance = async (req, res) => {
           );
 
           soutenancesCrees.push(soutenancePopulee);
-
           heureActuelle += dureeSoutenance;
+
           soutenancesMemeJour = await soutenancePfaModel.find({
             date_soutenance: {
               $gte: dateSoutenance.clone().startOf("day").toDate(),
@@ -1982,23 +2251,23 @@ export const publishAffectedPfas = async (req, res) => {
 
     if (response === "true") {
       const foundAffectedPfas = await pfaModel.find({
-        etatAffectation: "affected",
+        etatAffectation: { $in: ["affected", "masked"] },
       });
 
       if (foundAffectedPfas.length > 0) {
         await pfaModel.updateMany(
-          { etatAffectation: "affected" },
+          { etatAffectation: { $in: ["affected", "masked"] } },
           { etatAffectation: "published" }
         );
 
         return res.status(200).json({
           success: true,
-          message: `${foundAffectedPfas.length} PFAs affectés publiés.`,
+          message: `${foundAffectedPfas.length} PFAs publiés.`,
         });
       } else {
         return res.status(200).json({
           success: true,
-          message: "Aucun PFA affecté à publier.",
+          message: "Aucun PFA à publier.",
         });
       }
     } else {
@@ -2009,7 +2278,7 @@ export const publishAffectedPfas = async (req, res) => {
 
       return res.status(200).json({
         success: true,
-        message: "Liste des PFA affectés masquée.",
+        message: "Liste des PFA masquée.",
       });
     }
   } catch (error) {
@@ -2019,123 +2288,131 @@ export const publishAffectedPfas = async (req, res) => {
     });
   }
 };
+
 export const modifierSoutenance = async (req, res) => {
   try {
-    const { id } = req.params; // Récupération de l'ID de la soutenance depuis les paramètres
-    const { date_soutenance, heure_soutenance, salle, rapporteur } = req.body; // Champs à modifier
+    const { id } = req.params;
+    const { date_soutenance, heure_soutenance, salle, rapporteur } = req.body;
 
-    // Vérification de l'existence de la soutenance
+    // Vérification ID valide
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: "ID de soutenance invalide." });
+    }
+
+    // Trouver la soutenance
     const soutenance = await soutenancePfaModel.findById(id);
     if (!soutenance) {
       return res.status(404).json({ message: "Soutenance introuvable." });
     }
 
-    // Validation de l'ID du rapporteur si fourni
-    if (rapporteur && !mongoose.Types.ObjectId.isValid(rapporteur)) {
-      return res
-        .status(400)
-        .json({ message: "Identifiant du rapporteur invalide." });
-    }
-
-    // Vérification de l'existence du rapporteur
+    // Validation rapporteur
     if (rapporteur) {
+      if (!mongoose.Types.ObjectId.isValid(rapporteur)) {
+        return res
+          .status(400)
+          .json({ message: "Identifiant du rapporteur invalide." });
+      }
+
       const rapporteurExist = await userModel.findById(rapporteur);
       if (!rapporteurExist) {
         return res
           .status(400)
           .json({ message: "Identifiant du rapporteur inexistant." });
       }
-    }
 
-    // Vérification si l'identifiant du rapporteur modifié est le même que l'enseignant
-    if (rapporteur && rapporteur === soutenance.enseignant.toString()) {
-      return res.status(400).json({
-        message:
-          "L'identifiant du rapporteur ne peut pas être le même que celui de l'enseignant.",
-      });
-    }
+      // Rapporteur != enseignant
+      if (rapporteur === soutenance.enseignant.toString()) {
+        return res.status(400).json({
+          message: "Le rapporteur ne peut pas être le même que l'enseignant.",
+        });
+      }
 
-    // Vérification des soutenances encadrées et rapportées par le rapporteur modifié
-    if (rapporteur) {
-      const soutenancesEncadrant = await soutenancePfaModel.find({
+      // Vérification du nombre de soutenances encadrées et rapportées
+      const nbEncadrees = await soutenancePfaModel.countDocuments({
         enseignant: rapporteur,
       });
-      const soutenancesRapporteur = await soutenancePfaModel.find({
+      const nbRapportees = await soutenancePfaModel.countDocuments({
         rapporteur,
       });
 
-      // Vérification que le rapporteur n'encadre pas plus de soutenances qu'il ne rapporte
-      if (soutenancesEncadrant.length > soutenancesRapporteur.length) {
+      if (nbRapportees !== nbEncadrees) {
         return res.status(400).json({
           message:
             "Le rapporteur doit encadrer un nombre égal de soutenances à celles qu'il rapporte.",
         });
       }
-
-      // Vérification que le rapporteur ne rapporte pas plus de soutenances qu'il en encadre
-      if (soutenancesRapporteur.length > soutenancesEncadrant.length) {
-        return res.status(400).json({
-          message:
-            "Le rapporteur ne peut pas rapporter plus de soutenances qu'il n'en encadre.",
-        });
-      }
     }
 
-    // Déclaration de finHeureFormatted uniquement si heure_soutenance est fournie
-    let finHeureFormatted;
+    // Calcul fin de soutenance si heure donnée
+    let finHeureFormatted = null;
     if (heure_soutenance) {
-      const heureParts = heure_soutenance.split(":");
-      const heureDebut = parseInt(heureParts[0]) * 60 + parseInt(heureParts[1]); // Convertir l'heure en minutes
-      const finHeure = heureDebut + 30; // Durée de soutenance de 30 minutes
+      // Prendre uniquement les deux premiers éléments (heure, minute), ignorer les secondes si présentes
+      const parts = heure_soutenance.split(":");
+      console.log("Heure soutenance reçue :", heure_soutenance);
 
-      if (heureDebut < 480 || finHeure > 960) {
-        return res.status(400).json({
-          message: "La soutenance doit être programmée entre 08:00 et 16:00.",
-        });
+      if (parts.length < 2) {
+        return res.status(400).json({ message: "Format d'heure invalide." });
       }
 
-      finHeureFormatted = `${String(Math.floor(finHeure / 60)).padStart(
+      const h = Number(parts[0]);
+      const m = Number(parts[1]);
+
+      if (isNaN(h) || isNaN(m)) {
+        return res.status(400).json({ message: "Format d'heure invalide." });
+      }
+
+      const debutMin = h * 60 + m;
+      const finMin = debutMin + 30;
+
+      if (debutMin < 480 || finMin > 960) {
+        return res
+          .status(400)
+          .json({ message: "Soutenance doit être entre 08:00 et 16:00." });
+      }
+
+      finHeureFormatted = `${String(Math.floor(finMin / 60)).padStart(
         2,
         "0"
-      )}:${String(finHeure % 60).padStart(2, "0")}`;
+      )}:${String(finMin % 60).padStart(2, "0")}`;
     }
 
-    // Vérification des conflits d'horaires dans la même salle
-    if (salle && date_soutenance && heure_soutenance) {
-      const conflitHoraire = await soutenancePfaModel.findOne({
+    // Vérification conflits dans la même salle
+    if (date_soutenance && heure_soutenance && salle) {
+      const conflit = await soutenancePfaModel.findOne({
         date_soutenance,
         salle,
-        _id: { $ne: id }, // Exclure la soutenance actuelle
+        _id: { $ne: id },
         $or: [
           {
-            heure_soutenance: { $lt: finHeureFormatted }, // Vérifier que l'heure de début de la soutenance modifiée est avant la fin de l'autre
-            finHeure: { $gt: heure_soutenance }, // Vérifier que la fin de l'autre soutenance est après l'heure de début
+            heure_soutenance: { $lt: finHeureFormatted },
+            finHeure: { $gt: heure_soutenance },
           },
           {
-            heure_soutenance: { $gte: heure_soutenance }, // Vérifier que l'heure de début de la soutenance modifiée est après ou égale à celle de l'autre
-            heure_soutenance: { $lt: finHeureFormatted }, // Vérifier que l'heure de début est avant la fin de l'autre
+            heure_soutenance: {
+              $gte: heure_soutenance,
+              $lt: finHeureFormatted,
+            },
           },
         ],
       });
 
-      if (conflitHoraire) {
-        return res.status(400).json({
-          message:
-            "Conflit d'horaires avec une autre soutenance dans la même salle.",
-        });
+      if (conflit) {
+        return res
+          .status(400)
+          .json({ message: "Conflit d'horaires dans la même salle." });
       }
     }
 
-    // Vérification des conflits pour l'encadrant (enseignant) et le rapporteur (dans d'autres soutenances, même date et heure mais dans d'autres salles)
-    if (rapporteur || heure_soutenance || salle) {
-      const conflitEnseignantRapporteur = await soutenancePfaModel.findOne({
+    // Vérification conflits pour enseignant et rapporteur (dans d'autres salles)
+    if ((rapporteur || heure_soutenance || salle) && date_soutenance) {
+      const conflitPers = await soutenancePfaModel.findOne({
         date_soutenance,
+        _id: { $ne: id },
+        salle: { $ne: salle },
         $or: [
-          { enseignant: soutenance.enseignant }, // Vérification pour l'encadrant existant
-          { rapporteur }, // Vérification pour le rapporteur modifié
-        ],
-        _id: { $ne: id }, // Exclure la soutenance actuelle
-        salle: { $ne: salle }, // Vérification dans une autre salle
+          { enseignant: soutenance.enseignant },
+          rapporteur ? { rapporteur } : null,
+        ].filter(Boolean),
         $or: [
           {
             heure_soutenance: {
@@ -2147,44 +2424,40 @@ export const modifierSoutenance = async (req, res) => {
         ],
       });
 
-      if (conflitEnseignantRapporteur) {
+      if (conflitPers) {
         return res.status(400).json({
           message:
-            "L'encadrant ou le rapporteur est déjà engagé dans une autre soutenance à la même date et heure dans une autre salle.",
+            "Encadrant ou rapporteur déjà engagé dans une autre soutenance à la même heure.",
         });
       }
     }
 
-    const soutenancesMemeJour = await soutenancePfaModel.find({
-      date_soutenance: {
-        $gte: new Date(date_soutenance).setHours(0, 0, 0, 0),
-        $lt: new Date(date_soutenance).setHours(23, 59, 59, 999),
-      },
+    // Vérification du nombre max de soutenances dans la journée
+    const startOfDay = new Date(date_soutenance);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(date_soutenance);
+    endOfDay.setHours(23, 59, 59, 999);
+
+    const soutenancesDuJour = await soutenancePfaModel.countDocuments({
+      date_soutenance: { $gte: startOfDay, $lte: endOfDay },
       _id: { $ne: id },
     });
 
-    if (soutenancesMemeJour.length >= 6) {
+    if (soutenancesDuJour >= 6) {
       return res.status(400).json({
         message: "Nombre maximal de soutenances atteint pour ce jour.",
       });
     }
 
-    // Mise à jour des champs spécifiés uniquement s'ils sont présents dans la requête
+    // Mise à jour uniquement des champs fournis
     if (date_soutenance) soutenance.date_soutenance = date_soutenance;
     if (heure_soutenance) soutenance.heure_soutenance = heure_soutenance;
-    if (salle) soutenance.salle = salle;
-
-    // Mise à jour du rapporteur avec une vérification explicite
-    if (rapporteur !== undefined) {
-      soutenance.rapporteur =
-        rapporteur === null ? soutenance.rapporteur : rapporteur;
-    }
-
     if (finHeureFormatted) soutenance.finHeure = finHeureFormatted;
+    if (salle) soutenance.salle = salle;
+    if (rapporteur !== undefined) soutenance.rapporteur = rapporteur;
 
     await soutenance.save();
 
-    // Retourne la soutenance mise à jour, avec la gestion correcte du rapporteur
     const updatedSoutenance = await soutenance.populate(
       "rapporteur",
       "nom prenom"
@@ -2251,16 +2524,9 @@ export const publierOuMasquerSoutenances = async (req, res) => {
 
 export const sendPlanningSoutenances = async (req, res) => {
   try {
-    const { typeEnvoi } = req.body; // "first" ou "modified"
-    if (!["first", "modified"].includes(typeEnvoi)) {
-      return res.status(400).json({
-        message: "Type d'envoi invalide. Utilisez 'first' ou 'modified'.",
-      });
-    }
-
     // Récupérer toutes les soutenances
     const soutenances = await soutenancePfaModel
-      .find({}) // Rechercher toutes les soutenances
+      .find({ isPublished: true })
       .populate(
         "etudiants enseignant rapporteur",
         "adresseEmail nom prenom _id"
@@ -2268,103 +2534,132 @@ export const sendPlanningSoutenances = async (req, res) => {
 
     if (!soutenances.length) {
       return res.status(400).json({
-        message: "Aucune soutenance trouvée dans la base de données.",
+        message: "Aucune soutenance trouvée a étre publiée .",
       });
     }
 
-    // Construire la liste des destinataires
-    const emails = new Set(); // Utilisation d'un Set pour éviter les doublons
+    // Rassembler tous les utilisateurs impliqués
+    const allUsers = new Map(); // Pour éviter les doublons, clé = id
 
-    soutenances.forEach((soutenance) => {
-      if (soutenance.etudiants) {
-        soutenance.etudiants.forEach((etudiant) =>
-          emails.add(etudiant.adresseEmail)
+    for (const soutenance of soutenances) {
+      (soutenance.etudiants || []).forEach((etudiant) => {
+        allUsers.set(etudiant._id.toString(), etudiant);
+      });
+      if (soutenance.enseignant) {
+        allUsers.set(
+          soutenance.enseignant._id.toString(),
+          soutenance.enseignant
         );
       }
-      if (soutenance.enseignant) {
-        emails.add(soutenance.enseignant.adresseEmail);
-      }
       if (soutenance.rapporteur) {
-        emails.add(soutenance.rapporteur.adresseEmail);
+        allUsers.set(
+          soutenance.rapporteur._id.toString(),
+          soutenance.rapporteur
+        );
       }
-    });
-
-    if (!emails.size) {
-      return res
-        .status(200)
-        .json({ message: "Aucun email à envoyer pour les soutenances." });
     }
 
-    // Configurer le transporteur SMTP
+    const userIds = Array.from(allUsers.keys());
+
+    // Charger les utilisateurs avec leur état d’envoi
+    const usersWithSendStatus = await userModel.find({
+      _id: { $in: userIds },
+    });
+
+    // Séparer les utilisateurs en deux groupes
+    const firstSendUsers = usersWithSendStatus.filter(
+      (user) => !user.isFirstSendPlanningPfa
+    );
+    const alreadySentUsers = usersWithSendStatus.filter(
+      (user) => user.isFirstSendPlanningPfa
+    );
+
+    const emailsFirstSend = firstSendUsers.map((user) => user.adresseEmail);
+    const emailsAlreadySent = alreadySentUsers.map((user) => user.adresseEmail);
+
+    if (!emailsFirstSend.length && !emailsAlreadySent.length) {
+      return res
+        .status(200)
+        .json({ message: "Tous les emails ont déjà été envoyés." });
+    }
+
+    // Configuration SMTP
     const smtpTransport = nodemailer.createTransport({
-      host: process.env.HOST, // Défini dans votre .env
-      port: process.env.PORT_SSL, // Port SSL
-      secure: true, // Utilisation de SSL
+      host: process.env.HOST,
+      port: process.env.PORT_SSL,
+      secure: true,
       auth: {
-        user: process.env.MAILER_EMAIL_ID, // Email pour l'authentification
-        pass: process.env.MAILER_PASSWORD, // Mot de passe d'application
+        user: process.env.MAILER_EMAIL_ID,
+        pass: process.env.MAILER_PASSWORD,
       },
     });
 
-    // Vérifier la configuration SMTP avant l'envoi
     await smtpTransport.verify();
 
-    // Contenu des emails selon le type d'envoi
-    const emailSubject =
-      typeEnvoi === "first"
-        ? "Planning des soutenances de PFAs"
-        : "Mise à jour du planning des soutenances de PFAs";
+    const firstSendHtml = `
+      Bonjour,<br/><br/>
+      Nous avons le plaisir de vous informer que le planning des soutenances de PFAs a été publié. <br/>
+      Vous pouvez consulter les détails du planning en suivant le lien ci-dessous :<br/><br/>
+      <a href="${process.env.API_ENDPOINT}/planning-soutenances" target="_blank" style="color: #007bff; text-decoration: none; font-weight: bold;">
+        Accéder au planning des soutenances
+      </a><br/><br/>
+      Cordialement,<br/>
+      L’équipe de coordination des PFAs.
+    `;
 
-    const emailHtml =
-      typeEnvoi === "first"
-        ? `Bonjour,<br/><br/>
-          Nous avons le plaisir de vous informer que le planning des soutenances de PFAs a été publié. <br/>
-          Vous pouvez consulter les détails du planning en suivant le lien ci-dessous :<br/><br/>
-          <a href="${process.env.API_ENDPOINT}/planning-soutenances" target="_blank" style="color: #007bff; text-decoration: none; font-weight: bold;">
-            Accéder au planning des soutenances
-          </a><br/><br/>
-          Cordialement,<br/>
-          L’équipe de coordination des PFAs.`
-        : `Bonjour,<br/><br/>
-          Nous vous informons que le planning des soutenances de PFAs a été mis à jour. <br/>
-          Veuillez consulter les modifications en suivant le lien ci-dessous :<br/><br/>
-          <a href="${process.env.API_ENDPOINT}/planning-soutenances" target="_blank" style="color: #007bff; text-decoration: none; font-weight: bold;">
-            Accéder au planning mis à jour
-          </a><br/><br/>
-          Cordialement,<br/>
-          L’équipe de coordination des PFAs.`;
+    const updatedSendHtml = `
+      Bonjour,<br/><br/>
+      Nous vous informons que le planning des soutenances de PFAs a été mis à jour. <br/>
+      Veuillez consulter les modifications en suivant le lien ci-dessous :<br/><br/>
+      <a href="${process.env.API_ENDPOINT}/planning-soutenances" target="_blank" style="color: #007bff; text-decoration: none; font-weight: bold;">
+        Accéder au planning mis à jour
+      </a><br/><br/>
+      Cordialement,<br/>
+      L’équipe de coordination des PFAs.
+    `;
 
-    // Envoi des emails
-    const mailOptions = {
-      from: process.env.MAILER_EMAIL_ID,
-      to: [...emails], // Conversion du Set en tableau
-      subject: emailSubject,
-      html: emailHtml,
+    const sendEmail = async (destinataires, subject, htmlContent) => {
+      const mailOptions = {
+        from: process.env.MAILER_EMAIL_ID,
+        to: destinataires,
+        subject,
+        html: htmlContent,
+      };
+      return smtpTransport.sendMail(mailOptions);
     };
 
-    await smtpTransport.sendMail(mailOptions);
+    if (emailsFirstSend.length) {
+      await sendEmail(
+        emailsFirstSend,
+        "Planning des soutenances de PFAs disponible",
+        firstSendHtml
+      );
 
-    // Mettre à jour l'état de chaque soutenance après l'envoi des emails
-    const updateConditions =
-      typeEnvoi === "first"
-        ? { emailSent: true } // Ajouter emailSent: true pour le premier envoi
-        : { isSecondSend: true }; // Mettre isSecondSend à true pour un envoi modifié
+      // Mettre à jour `isFirstSendPlanningPfa` à true
+      const firstSendIds = firstSendUsers.map((user) => user._id);
+      await userModel.updateMany(
+        { _id: { $in: firstSendIds } },
+        { $set: { isFirstSendPlanningPfa: true } }
+      );
+    }
 
-    // Mettre à jour l'état des soutenances dans la base de données
-    await soutenancePfaModel.updateMany({}, { $set: updateConditions });
+    if (emailsAlreadySent.length) {
+      await sendEmail(
+        emailsAlreadySent,
+        "Mise à jour du planning des soutenances de PFAs",
+        updatedSendHtml
+      );
+    }
 
     return res.status(200).json({
       success: true,
-      message: `Emails envoyés avec succès pour le planning des soutenances (${
-        typeEnvoi === "first" ? "première publication" : "mise à jour"
-      }).`,
+      message: "Emails envoyés avec succès pour le planning des soutenances.",
     });
   } catch (error) {
     console.error("Erreur :", error.message);
     return res.status(500).json({
       success: false,
       message: "Une erreur s'est produite lors de l'envoi des emails.",
-
       error: error.message,
     });
   }
@@ -2372,6 +2667,19 @@ export const sendPlanningSoutenances = async (req, res) => {
 
 export const sendListePfaAffected = async (req, res) => {
   try {
+    // Vérifier les PFAs publiés et affectés
+    const assignedPfas = await pfaModel.find({
+      etatDepot: "published",
+      etatAffectation: "published",
+    });
+
+    if (!assignedPfas.length) {
+      return res.status(400).json({
+        message:
+          "Aucun PFA publié et affecté n'a été trouvé. Aucun email ne sera envoyé.",
+      });
+    }
+
     // Trouver les étudiants au niveau 2ING
     const foundEtudiants = await userModel.find({
       $and: [{ role: "etudiant" }, { niveau: 2 }],
@@ -2442,64 +2750,62 @@ export const sendListePfaAffected = async (req, res) => {
       },
     });
 
-    // Contenu des emails
     const firstSendHtml = `
-   <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
-  <h1 style="color: #007bff;">Bonjour,</h1>
-  <p>
-    Nous avons le plaisir de vous informer que la liste d'affectation aux sujets pour les 
-    <strong>Projets de Fin d’Année (PFAs)</strong> a été publiée.
-  </p>
-  <p>
-    Vous pouvez consulter les détails des affectations en suivant le lien ci-dessous :
-  </p>
-  <div style="margin: 20px 0; text-align: center;">
-    <a href="${API_ENDPOINT}/getAssignedPfas" 
-       target="_blank" 
-       style="display: inline-block; background-color: #007bff; color: #fff; text-decoration: none; 
-              font-weight: bold; padding: 10px 20px; border-radius: 5px;">
-      Accéder à la liste d'affectation
-    </a>
-  </div>
-  <p>
-    Cordialement,<br/>
-    <em>L’équipe de coordination des PFAs</em>
-  </p>
-  <hr style="border: none; border-top: 1px solid #ddd; margin: 20px 0;">
-  <footer style="font-size: 0.9em; color: #555;">
-    Ceci est un message automatique. Merci de ne pas répondre à cet e-mail.
-  </footer>
-</div>
-
+      <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+        <h1 style="color: #007bff;">Bonjour,</h1>
+        <p>
+          Nous avons le plaisir de vous informer que la liste d'affectation aux sujets pour les 
+          <strong>Projets de Fin d’Année (PFAs)</strong> a été publiée.
+        </p>
+        <p>
+          Vous pouvez consulter les détails des affectations en suivant le lien ci-dessous :
+        </p>
+        <div style="margin: 20px 0; text-align: center;">
+          <a href="${API_ENDPOINT}/getAssignedPfas" 
+             target="_blank" 
+             style="display: inline-block; background-color: #007bff; color: #fff; text-decoration: none; 
+                    font-weight: bold; padding: 10px 20px; border-radius: 5px;">
+            Accéder à la liste d'affectation
+          </a>
+        </div>
+        <p>
+          Cordialement,<br/>
+          <em>L’équipe de coordination des PFAs</em>
+        </p>
+        <hr style="border: none; border-top: 1px solid #ddd; margin: 20px 0;">
+        <footer style="font-size: 0.9em; color: #555;">
+          Ceci est un message automatique. Merci de ne pas répondre à cet e-mail.
+        </footer>
+      </div>
     `;
 
     const updatedSendHtml = `
       <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
-  <h1 style="color: #007bff;">Bonjour,</h1>
-  <p>
-    Nous avons le plaisir de vous informer que la liste d'affectation aux sujets pour les 
-    <strong>Projets de Fin d’Année (PFAs)</strong> a été mise à jour .
-  </p>
-  <p>
-    Vous pouvez consulter les détails des affectations en suivant le lien ci-dessous :
-  </p>
-  <div style="margin: 20px 0; text-align: center;">
-    <a href="${API_ENDPOINT}/getAssignedPfas" 
-       target="_blank" 
-       style="display: inline-block; background-color: #007bff; color: #fff; text-decoration: none; 
-              font-weight: bold; padding: 10px 20px; border-radius: 5px;">
-      Accéder à la liste d'affectation
-    </a>
-  </div>
-  <p>
-    Cordialement,<br/>
-    <em>L’équipe de coordination des PFAs</em>
-  </p>
-  <hr style="border: none; border-top: 1px solid #ddd; margin: 20px 0;">
-  <footer style="font-size: 0.9em; color: #555;">
-    Ceci est un message automatique. Merci de ne pas répondre à cet e-mail.
-  </footer>
-</div>
+        <h1 style="color: #007bff;">Bonjour,</h1>
+        <p>
+          Nous avons le plaisir de vous informer que la liste d'affectation aux sujets pour les 
+          <strong>Projets de Fin d’Année (PFAs)</strong> a été mise à jour.
+        </p>
+        <p>
+          Vous pouvez consulter les détails des affectations en suivant le lien ci-dessous :
+        </p>
+        <div style="margin: 20px 0; text-align: center;">
+          <a href="${API_ENDPOINT}/getAssignedPfas" 
+             target="_blank" 
+             style="display: inline-block; background-color: #007bff; color: #fff; text-decoration: none; 
+                    font-weight: bold; padding: 10px 20px; border-radius: 5px;">
+            Accéder à la liste d'affectation
+          </a>
+        </div>
+        <p>
+          Cordialement,<br/>
+          <em>L’équipe de coordination des PFAs</em>
+        </p>
+        <hr style="border: none; border-top: 1px solid #ddd; margin: 20px 0;">
+        <footer style="font-size: 0.9em; color: #555;">
+          Ceci est un message automatique. Merci de ne pas répondre à cet e-mail.
+        </footer>
+      </div>
     `;
 
     // Fonction d'envoi d'emails
@@ -2580,7 +2886,7 @@ export const fetchAssignedPfa = async (req, res) => {
     return res.status(500).json({ success: false, message: error.message });
   }
 };
-export const fetchPlanningSoutenances = async (req, res) => {
+export const fetchPlanningSoutenance = async (req, res) => {
   try {
     const { enseignantId, etudiantId } = req.query;
 
@@ -2632,6 +2938,76 @@ export const fetchPlanningSoutenances = async (req, res) => {
   }
 };
 
+export const fetchPlanningSoutenances = async (req, res) => {
+  try {
+    const plannings = await soutenancePfaModel
+      .find()
+      .populate("enseignant", "nom prenom _id")
+      .populate("rapporteur", "nom prenom _id")
+      .populate("etudiants", "nom prenom _id")
+      .populate("pfa", "code_pfa")
+      .select("date_soutenance heure_soutenance salle isPublished");
+
+    if (!plannings || plannings.length === 0) {
+      return res.status(404).json({
+        message: "Aucune soutenance trouvée pour les critères spécifiés.",
+      });
+    }
+
+    return res.status(200).json({
+      model: plannings,
+      message: "Plannings des soutenances récupérés avec succès.",
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message:
+        "Erreur lors de la récupération des soutenances : " + error.message,
+    });
+  }
+};
+
+// pfaController.js ou ton fichier service
+import Pfa from "../models/pfaModel.js";
+
+export const getEnseignantsAyantDeposePFA = async (req, res) => {
+  try {
+    const enseignants = await pfaModel.aggregate([
+      {
+        $group: {
+          _id: "$enseignant", // Grouper par enseignant
+        },
+      },
+      {
+        $lookup: {
+          from: "users", // Nom de la collection MongoDB
+          localField: "_id",
+          foreignField: "_id",
+          as: "enseignantDetails",
+        },
+      },
+      {
+        $unwind: "$enseignantDetails",
+      },
+      {
+        $project: {
+          _id: 0,
+          enseignantId: "$enseignantDetails._id",
+          nom: "$enseignantDetails.nom",
+          prenom: "$enseignantDetails.prenom",
+          email: "$enseignantDetails.email",
+        },
+      },
+    ]);
+
+    res.status(200).json(enseignants);
+  } catch (error) {
+    console.error("Erreur lors de la récupération des enseignants :", error);
+    res.status(500).json({
+      message: "Erreur serveur lors de la récupération des enseignants.",
+    });
+  }
+};
+
 export const fetchMyPfa = async (req, res) => {
   try {
     const studentId = req.auth.userId;
@@ -2652,7 +3028,7 @@ export const fetchMyPfa = async (req, res) => {
       .find({
         etudiants: studentId,
       })
-      .populate("enseignant", "nom prenom email") // Charger les détails de l'enseignant
+      .populate("enseignant", "nom prenom email adresseEmail") // Charger les détails de l'enseignant
       .populate("etudiants", "nom prenom email"); // Charger les détails des étudiants du binôme s'il y en a
 
     if (sujetsPfa.length === 0) {
@@ -2671,6 +3047,41 @@ export const fetchMyPfa = async (req, res) => {
     res.status(500).json({
       message:
         "Une erreur est survenue lors de la récupération des informations.",
+      error: error.message,
+    });
+  }
+};
+
+/////
+export const fetchStudentSoutenance = async (req, res) => {
+  try {
+    const studentId = req.auth.userId;
+
+    // Recherche la soutenance où l'étudiant est inscrit et qui est publiée
+    const soutenance = await soutenancePfaModel
+      .findOne({
+        etudiants: studentId,
+        isPublished: true,
+      })
+      .populate("pfa", "titre code_pfa") // récupère titre et description du PFA
+      .populate("enseignant", "nom prenom adresseEmail") // détails enseignant
+      .populate("rapporteur", "nom prenom adresseEmail"); // détails rapporteur
+
+    if (!soutenance) {
+      return res.status(404).json({
+        success: false,
+        message: "Aucune soutenance trouvée pour cet étudiant.",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      model: [soutenance],
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: "Erreur lors de la récupération de la soutenance.",
       error: error.message,
     });
   }
