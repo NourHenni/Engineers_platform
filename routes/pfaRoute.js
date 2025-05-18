@@ -29,6 +29,7 @@ import {
   sendPlanningSoutenances,
   fetchPlanningSoutenances,
   getPfaByAnnee,
+  getPeriod,
 } from "../controllers/pfaController.js";
 
 import {
@@ -50,6 +51,8 @@ router.post("/open", isAdmin, addPeriod);
 //1.3 GET request
 router.get("/open", isAdmin, getPeriodes);
 
+//1.3 GET PERIOD
+router.get("/open/:id", isAdmin, getPeriod);
 //1.2.PATCH request
 router.patch("/open", isAdmin, updateDelais);
 

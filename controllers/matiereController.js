@@ -22,8 +22,8 @@ export const createMatiere = async (req, res) => {
       NbHeuresTD,
       NbHeuresTP,
       Curriculum,
-      Semestre,
-      Niveau,
+      semestre,
+      niveau,
       Annee,
       publiee,
     } = req.body;
@@ -92,13 +92,13 @@ export const createMatiere = async (req, res) => {
       errors.push("Curriculum doit être un tableau.");
     }
 
-    if (Semestre && !["S1", "S2", "S3", "S4", "S5"].includes(Semestre)) {
+    if (semestre && !["S1", "S2", "S3", "S4", "S5"].includes(semestre)) {
       errors.push(
         "Semestre doit être l'une des valeurs suivantes : S1, S2, S3, S4, S5."
       );
     }
 
-    if (Niveau && !["1ING", "2ING", "3ING"].includes(Niveau)) {
+    if (niveau && !["1", "2", "3"].includes(niveau)) {
       errors.push(
         "Niveau doit être l'une des valeurs suivantes : 1ING, 2ING, 3ING."
       );
@@ -183,40 +183,73 @@ export const createMatiere = async (req, res) => {
 
 export const getMatieres = async (req, res) => {
   try {
-    const userId = req.auth.userId; // Obtenu depuis le middleware d'authentification
-    const userRole = req.auth.role; // Obtenu depuis le middleware d'authentification
+    const userId = req.auth.userId;
+    const userRole = req.auth.role;
 
     let matieres;
+    let query = {};
 
     if (userRole === "admin") {
-      // Admin peut voir toutes les matières
-      matieres = await Matiere.find().populate("competences");
-    } else if (["enseignant", "etudiant"].includes(userRole)) {
-      // Vérifier si l'utilisateur existe
+      // Admin voit toutes les matières
+      matieres = await Matiere.find().populate("competences enseignant");
+    } else if (userRole === "enseignant") {
+      // Enseignant ne voit QUE SES matières publiées
       const utilisateur = await User.findById(userId);
+      
       if (!utilisateur) {
-        return res.status(404).json({
-          message: `${
-            userRole === "enseignant" ? "Enseignant" : "Étudiant"
-          } introuvable.`,
+        return res.status(404).json({ message: "Enseignant introuvable." });
+      }
+
+      query = {
+        enseignant: userId,
+        publiee: true
+      };
+
+      matieres = await Matiere.find(query)
+        .populate("competences enseignant");
+
+    }else if (userRole === "etudiant") { 
+      const utilisateur = await User.findById(userId);
+      
+      if (!utilisateur) {
+        console.log("[DEBUG] Étudiant non trouvé ID:", userId); // Log
+        return res.status(404).json({ message: "Étudiant introuvable." });
+      }
+
+      // Vérification renforcée
+      if (!utilisateur.niveau || !utilisateur.semestre) {
+        console.log("[DEBUG] Données manquantes:", { // Log
+          niveau: utilisateur.niveau, 
+          semestre: utilisateur.semestre
+        });
+        return res.status(400).json({ 
+          message: "Profil étudiant incomplet (niveau/semestre manquant). Contactez l'administration." 
         });
       }
 
-      // Enseignant et étudiant voient uniquement les matières publiées
-      matieres = await Matiere.find({ publiee: true });
+      query = { 
+        publiee: true,
+        niveau: utilisateur.niveau,
+        semestre: utilisateur.semestre 
+      };
+      matieres = await Matiere.find(query)
+        .populate("competences enseignant");
+
     } else {
-      return res
-        .status(403)
-        .json({ message: "Accès refusé : rôle non autorisé." });
+      return res.status(403).json({ 
+        message: "Accès refusé : Rôle non autorisé." 
+      });
     }
 
-    if (matieres.length === 0) {
-      return res.status(404).json({ message: "Aucune matière trouvée." });
+    if (!matieres || matieres.length === 0) {
+      return res.status(200).json([]);
     }
 
     res.status(200).json(matieres);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ 
+      error: "Erreur serveur : " + error.message 
+    });
   }
 };
 
@@ -282,8 +315,8 @@ export const updateMatiere = async (req, res) => {
       "Curriculum",
       "Annee",
       "archived",
-      "Semestre",
-      "Niveau",
+      "semestre",
+      "niveau",
       "publiee",
       "competences",
       "enseignant",
@@ -410,17 +443,17 @@ export const updateMatiere = async (req, res) => {
     }
 
     if (
-      matiereToUpdate.Semestre &&
-      !["S1", "S2", "S3", "S4", "S5"].includes(matiereToUpdate.Semestre)
+      matiereToUpdate.semestre &&
+      !["S1", "S2"].includes(matiereToUpdate.semestre)
     ) {
       errors.push(
-        "Semestre doit être l'une des valeurs suivantes : S1, S2, S3, S4, S5."
+        "Semestre doit être l'une des valeurs suivantes : S1, S2"
       );
     }
 
     if (
-      matiereToUpdate.Niveau &&
-      !["1ING", "2ING", "3ING"].includes(matiereToUpdate.Niveau)
+      matiereToUpdate.niveau &&
+      !["1", "2", "3"].includes(matiereToUpdate.niveau)
     ) {
       errors.push(
         "Niveau doit être l'une des valeurs suivantes : 1ING, 2ING, 3ING."
@@ -487,9 +520,9 @@ export const updateMatiere = async (req, res) => {
 
     // Sauvegarder les anciennes données
     const ancienneValeurComplete = { ...matiere.toObject() }; //toObject permet de manipuler une copie des données sans affecter l'original.
-
+   
     // Mettre à jour la matière
-    const updatedMatiere = await Matiere.findByIdAndUpdate(
+       const updatedMatiere = await Matiere.findByIdAndUpdate(
       matiereId,
       matiereToUpdate,
       { new: true }
@@ -518,33 +551,7 @@ export const updateMatiere = async (req, res) => {
         .status(200)
         .json({ message: "Aucune modification effectuée." });
     }
-    if (matiereToUpdate.competences) {
-      const anciennesCompetences = existingMatiere.competences.map((c) =>
-        c.toString()
-      );
-      const nouvellesCompetences = matiereToUpdate.competences;
 
-      // Compétences à retirer
-      const competencesARetirer = anciennesCompetences.filter(
-        (id) => !nouvellesCompetences.includes(id)
-      );
-      // Compétences à ajouter
-      const competencesAAjouter = nouvellesCompetences.filter(
-        (id) => !anciennesCompetences.includes(id)
-      );
-
-      // Retirer la matière des anciennes compétences
-      await Competence.updateMany(
-        { _id: { $in: competencesARetirer } },
-        { $pull: { matieres: matiere._id } }
-      );
-
-      // Ajouter la matière aux nouvelles compétences
-      await Competence.updateMany(
-        { _id: { $in: competencesAAjouter } },
-        { $addToSet: { matieres: matiere._id } }
-      );
-    }
     // Ajouter une entrée dans l'historique uniquement si des modifications ont eu lieu
     if (Object.keys(ancienneValeur).length > 0) {
       const historiqueEntry = new Historique({
@@ -565,6 +572,7 @@ export const updateMatiere = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+
 
 export const publishOrHideMatieres = async (req, res) => {
   try {

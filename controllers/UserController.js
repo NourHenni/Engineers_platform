@@ -46,10 +46,11 @@ export const login = async (req, res) => {
       });
     }
 
-    // Generate JWT token
-    const token = jwt.sign({ userId: foundUser._id }, process.env.JWT_SECRET, {
-      expiresIn: "1h",
-    });
+    const token = jwt.sign(
+      { userId: foundUser._id, role: foundUser.role }, // Add role to the token payload
+      process.env.JWT_SECRET,
+      { expiresIn: "1h" }
+    );
 
     // Respond with the token
     res.status(200).json({

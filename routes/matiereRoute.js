@@ -12,6 +12,7 @@ import {
   addEvaluation,
   getEvaluations,
   EnvoiEmailEvaluation,
+ 
 } from "../controllers/matiereController.js";
 
 import { authMiddleware } from "../middellwares/authMiddellware.js";
@@ -52,5 +53,7 @@ router.get(
   isAdminOrEnseignant,
   getEvaluations
 );
+//router.get("/:id/historique", authMiddleware,isAdminOrEnseignant, getHistorique);
+
 
 export default router;

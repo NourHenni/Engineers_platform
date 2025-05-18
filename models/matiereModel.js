@@ -101,13 +101,14 @@ const matiereSchema = mongoose.Schema({
     type: Number,
     required: true,
   },
-  Semestre: {
+  semestre: {
     type: String,
+    enum: ["S1", "S2"],
     required: true,
   },
-  Niveau: {
+  niveau: {
     type: String,
-    enum: ["1ING", "2ING", "3ING"],
+    enum: ["1", "2", "3"],
     required: true,
   },
 
