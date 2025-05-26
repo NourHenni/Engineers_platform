@@ -56,7 +56,7 @@ const stageEteSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "SoutenanceStageEte",
     },
-    publie: { type: Boolean, default: false }, // Champ pour gérer la publication
+    publie: { type: Boolean, default: true }, // Champ pour gérer la publication
     etudiant: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User", // Référence au modèle User

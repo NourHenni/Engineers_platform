@@ -6,6 +6,7 @@ import nodemailer from "nodemailer";
 import SoutenanceStageEte from "../models/soutenanceStageEteModel.js";
 import moment from "moment";
 import periodeModel from "../models/periodeModel.js";
+import yearModel from "../models/yearModel.js";
 
 import dotenv from "dotenv";
 import competenceModel from "../models/competenceModel.js";
@@ -15,53 +16,78 @@ dotenv.config();
 
 //ajouter periode
 
+
+
+
 export const addPeriod = async (req, res) => {
   try {
-    const { niveau } = req.params;
-    const currentDate = moment().utc().startOf("day");
-    const start_date = moment(req.body.DateDebutDepot + "T00:00:00Z").utc();
-    const end_date = moment(req.body.DateFinDepot + "T23:59:59Z").utc();
-    if (end_date.isBefore(currentDate) || end_date.isBefore(start_date)) {
-      res.status(400).json({
+    const { DateDebutDepot, DateFinDepot, niveau } = req.body;
+
+    // Vérifier les champs obligatoires
+    if (!DateDebutDepot || !DateFinDepot || !niveau) {
+      return res.status(400).json({
         success: false,
-        message: "Date Invalide",
+        message: "Veuillez fournir la date de début, date de fin et le niveau.",
       });
-    } else {
-      const period = new periodeModel({
-        Nom: req.body.Nom,
-        Date_Debut_depot: start_date,
-        Date_Fin_depot: end_date,
-        type: req.body.type,
-        niveau: niveau,
+    }
+
+    const currentDate = moment().utc().startOf("day");
+    const start_date = moment.utc(DateDebutDepot + "T00:00:00Z");
+    const end_date = moment.utc(DateFinDepot + "T23:59:59Z");
+
+    // Validation des dates
+    if (end_date.isBefore(currentDate)) {
+      return res.status(400).json({
+        success: false,
+        message: "La date de fin ne peut pas être dans le passé.",
       });
-      const foundPeriodType = await periodeModel.findOne({
-        niveau: period.niveau,
+    }
+
+    if (end_date.isBefore(start_date)) {
+      return res.status(400).json({
+        success: false,
+        message: "La date de fin ne peut pas être avant la date de début.",
       });
-      if (!foundPeriodType) {
-        if (start_date.isAfter(currentDate, "day")) {
-          period.PeriodState = "Not started yet";
-        } else if (
-          start_date.isSame(currentDate, "day") ||
-          start_date.isBefore(currentDate, "day")
-        ) {
-          period.PeriodState = "In progress";
-        }
-        if (
-          period.PeriodState == "In progress" ||
-          period.PeriodState == "Not started yet"
-        ) {
-          await period.save();
-          res.status(200).send({ message: "période crée avec succés" });
-        }
-      } else {
-        res.status(400).send({
-          message: "Une periode avec ce type éxiste deja ",
+    }
+
+    // Vérification des périodes existantes du même niveau
+    const existingPeriods = await periodeModel.find({ niveau });
+
+    for (const period of existingPeriods) {
+      const state = period.PeriodState;
+      if (state === "In progress" || state === "Not started yet") {
+        return res.status(400).json({
+          success: false,
+          message: `Une période avec l'état '${state}' existe déjà pour ce niveau.`,
         });
       }
     }
+
+    // Création de la période avec type par défaut
+    const newPeriod = new periodeModel({
+      Nom: "Summer Internship",
+      Date_Debut_depot: start_date,
+      Date_Fin_depot: end_date,
+      type: "Summer Internship",
+      niveau,
+      PeriodState: start_date.isAfter(currentDate) ? "Not started yet" : "In progress",
+    });
+
+    await newPeriod.save();
+
+    return res.status(200).json({
+      success: true,
+      message: "Période créée avec succès.",
+      data: newPeriod,
+    });
+
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: "Erreur serveur", error: error.message });
+    console.error("Erreur dans addPeriod:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Erreur serveur.",
+      error: error.message,
+    });
   }
 };
 
@@ -69,39 +95,30 @@ export const addPeriod = async (req, res) => {
 
 export const getAllPeriods = async (req, res) => {
   try {
-    const validTypes = ["premiereannee", "deuxiemeannee"];
-    const { niveau } = req.params;
+    const niveaux = ["premiereannee", "deuxiemeannee"];
 
-    // Vérifiez si le type est valide
-    if (!validTypes.includes(niveau)) {
-      return res.status(400).json({
-        success: false,
-        message: "Type de niveau invalide.",
-      });
-    }
-    // Récupérer toutes les périodes depuis la base de données
-    const periodes = await periodeModel.find({ niveau: niveau });
+    // Récupérer toutes les périodes pour les deux niveaux
+    const periodes = await periodeModel.find(
+      { niveau: { $in: niveaux } },
+      { Nom: 1, niveau: 1, PeriodState: 1, Date_Debut_depot: 1, Date_Fin_depot: 1 }
+    ).sort({ Date_Debut_depot: -1 }); // optionnel : trier par date de début décroissante
 
-    // Vérifier si des périodes existent
     if (!periodes || periodes.length === 0) {
       return res.status(404).json({
         success: false,
-        message: "Aucune période trouvée.",
+        message: "Aucune période trouvée pour les deux niveaux.",
       });
     }
 
-    // Retourner les périodes
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       message: "Périodes récupérées avec succès.",
       periodes,
     });
+
   } catch (error) {
-    console.error(
-      "Erreur lors de la récupération des périodes:",
-      error.message
-    );
-    res.status(500).json({
+    console.error("Erreur lors de la récupération des périodes:", error.message);
+    return res.status(500).json({
       success: false,
       message: "Erreur serveur. Réessayez plus tard.",
       error: error.message,
@@ -112,79 +129,122 @@ export const getAllPeriods = async (req, res) => {
 //mise a jour
 
 export const updatePeriod = async (req, res) => {
+
+
+  console.log("Received update request for:", req.params.id);
+  console.log("Request body:", req.body);
+  console.log("Headers:", req.headers);
   try {
-    const { dateDebut, dateFin } = req.body;
-    const { niveau } = req.params;
-    // Vérification des champs obligatoires
-    if (!dateDebut || !dateFin) {
+    const { id } = req.params;
+    const currentDate = moment().utc().startOf("day");
+    
+    // Conversion des dates
+    const startDate = moment.utc(req.body.DateDebutDepot + "T00:00:00Z");
+    const endDate = moment.utc(req.body.DateFinDepot + "T23:59:59Z");
+
+    // Validation basique des dates
+    if (endDate.isBefore(startDate)) {
       return res.status(400).json({
         success: false,
-        message: "Les champs 'dateDebut' et 'dateFin' sont obligatoires.",
+        message: "La date de fin ne peut pas être avant la date de début.",
       });
     }
 
-    // Recherche de la période spécifique (exemple : "Summer Internship")
-    const periode = await periodeModel.findOne({ niveau: niveau });
-
-    if (!periode) {
+    // Récupérer et mettre à jour la période
+    const periodToUpdate = await periodeModel.findById(id);
+    
+    if (!periodToUpdate) {
       return res.status(404).json({
         success: false,
-        message: "Période introuvable.",
-      });
-    }
-
-    // Validation des nouvelles dates
-    const now = new Date();
-    const newDateDebut = new Date(dateDebut);
-    const newDateFin = new Date(dateFin);
-
-    if (newDateDebut >= newDateFin) {
-      return res.status(400).json({
-        success: false,
-        message: "La date de début doit être antérieure à la date de fin.",
-      });
-    }
-
-    if (newDateFin < now) {
-      return res.status(400).json({
-        success: false,
-        message:
-          "La date de fin doit être supérieure ou égale à la date actuelle.",
+        message: "Période non trouvée.",
       });
     }
 
     // Mise à jour des dates
-    periode.Date_Debut_depot = newDateDebut;
-    periode.Date_Fin_depot = newDateFin;
+    periodToUpdate.Date_Debut_depot = startDate;
+    periodToUpdate.Date_Fin_depot = endDate;
 
-    // Mise à jour de l'état (PeriodState) en fonction des nouvelles dates
-    if (newDateDebut > now) {
-      periode.PeriodState = "Not started yet";
-    } else if (newDateFin >= now && newDateDebut <= now) {
-      periode.PeriodState = "In progress";
-    } else if (newDateFin < now) {
-      periode.PeriodState = "Finished";
-    }
+    // Détermination automatique du nouvel état
+    periodToUpdate.PeriodState = startDate.isAfter(currentDate) 
+      ? "Not started yet" 
+      : endDate.isBefore(currentDate) 
+        ? "Closed" 
+        : "In progress";
 
-    // Enregistrement des modifications
-    await periode.save();
+    await periodToUpdate.save();
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
-      message: "Les délais ont été mis à jour avec succès.",
-      periode,
+      message: "Période mise à jour avec succès.",
+      data: {
+        _id: periodToUpdate._id,
+        Nom: periodToUpdate.Nom,
+        Date_Debut_depot: periodToUpdate.Date_Debut_depot,
+        Date_Fin_depot: periodToUpdate.Date_Fin_depot,
+        PeriodState: periodToUpdate.PeriodState,
+        niveau: periodToUpdate.niveau
+      }
     });
+
   } catch (error) {
-    console.error("Erreur lors de la mise à jour des délais :", error.message);
-    res.status(500).json({
+    console.error("Erreur lors de la mise à jour de la période:", error.message);
+    return res.status(500).json({
       success: false,
-      message: "Erreur serveur. Veuillez réessayer plus tard.",
+      message: "Erreur serveur.",
       error: error.message,
     });
   }
 };
+export const deletePeriod = async (req, res) => {
+  try {
+    const { id } = req.params;
 
+    // 1. Vérifier que l'ID est valide
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({
+        success: false,
+        message: "ID de période invalide"
+      });
+    }
+
+    // 2. Trouver la période avant suppression
+    const periodToDelete = await periodeModel.findById(id);
+
+    // 3. Vérifier si la période existe
+    if (!periodToDelete) {
+      return res.status(404).json({
+        success: false,
+        message: "Période non trouvée"
+      });
+    }
+
+
+    // 5. Effectuer la suppression
+    await periodeModel.findByIdAndDelete(id);
+
+    return res.status(200).json({
+      success: true,
+      message: "Période supprimée avec succès",
+      deletedPeriod: {
+        id: periodToDelete._id,
+        nom: periodToDelete.Nom,
+        type: periodToDelete.type
+      }
+    });
+
+  } catch (error) {
+    console.error("Erreur lors de la suppression:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Erreur serveur",
+      error: error.message
+    });
+  }
+
+};
 // Contrôleur pour déposer un sujet avec documents
+
+
 
 export const postInternship = async (req, res) => {
   try {
@@ -303,7 +363,7 @@ export const postInternship = async (req, res) => {
         });
       }
 
-     const end_date = moment(activePeriod.Date_Fin_depot);
+      const end_date = moment(activePeriod.Date_Fin_depot);
       if (currentDate.isAfter(end_date)) {
         newStage.statutDepot = "Depose avec retard";
 
@@ -315,40 +375,42 @@ export const postInternship = async (req, res) => {
 
       const savedStage = await newStage.save();
 
+      // Mise à jour du document de l'étudiant
+      await User.findByIdAndUpdate(
+        etudiantId,
+        { $push: { stages: savedStage._id } },
+        { new: true }
+      );
+
       res.status(201).json({
         success: true,
         message: "Sujet de stage déposé avec succès.",
         stage: savedStage,
       });
-    } else {
-      res.status(400).json({
-        success: true,
-        message: "erreur",
-      });
     }
   } catch (error) {
-    console.error("Erreur lors du dépôt:", error.message);
     res.status(500).json({
       success: false,
-      message: "Une erreur est survenue lors du dépôt du sujet.",
+      message: "Erreur lors du dépôt du sujet de stage.",
       error: error.message,
     });
   }
 };
 
-export const getInternshipsByType = async (req, res) => {
-  const { type } = req.params;
+export const getInternshipsByTypeAndYear = async (req, res) => {
+  const { type, anneeStage } = req.params;
 
   try {
-    // Récupérer tous les stages pour un niveau donné
-    const stages = await StageEte.find({ niveau: type })
-      .populate("etudiant", "nom prenom adresseEmail role")
-      .populate("enseignant", "nom prenom adresseEmail")
-      .populate("soutenance", "horaire jour lien");
+    // Requête avec deux critères : niveau et anneeStage
+    const stages = await StageEte.find({ niveau: type, anneeStage })
+      .populate("etudiant", "nom prenom adresseEmail role _id")
+      .populate("enseignant", "nom prenom adresseEmail _id")
+      .populate("soutenance", "horaire jour lien _id");
+
     if (!stages || stages.length === 0) {
       return res.status(404).json({
         success: false,
-        message: `Aucun stage trouvé pour le niveau : ${type}`,
+        message: `Aucun stage trouvé pour le niveau : ${type} et l'année : ${anneeStage}`,
       });
     }
 
@@ -367,15 +429,18 @@ export const getInternshipsByType = async (req, res) => {
           }
         : null,
       stage: {
+        _id: stage._id,
         titreSujet: stage.titreSujet,
         nomEntreprise: stage.nomEntreprise,
         dateDebut: stage.dateDebut,
         dateFin: stage.dateFin,
         description: stage.description,
         natureSujet: stage.natureSujet,
+        anneeStage: stage.anneeStage,
         statutSujet: stage.statutSujet,
         statutDepot: stage.statutDepot,
         raison: stage.raisonInvalidation,
+        publie: stage.publie,
         fichiers: {
           rapport: stage.rapport,
           attestation: stage.attestation,
@@ -386,10 +451,11 @@ export const getInternshipsByType = async (req, res) => {
       soutenance: stage.soutenance
         ? {
             horaire: stage.soutenance.horaire,
+            _id: stage.soutenance._id,
             jour: stage.soutenance.jour,
             lien: stage.soutenance.lien,
           }
-        : null, // Si aucune soutenance n'est affectée
+        : null,
     }));
 
     res.status(200).json({
@@ -405,38 +471,45 @@ export const getInternshipsByType = async (req, res) => {
     });
   }
 };
+
 export const getStageDetails = async (req, res) => {
   try {
-    const { type, id } = req.params; // Récupération des paramètres
+    const { type, id } = req.params;
 
-    // Rechercher le stage par ID et niveau
-    const stage = await StageEte.findOne({ _id: id, niveau: type })
-      .populate("etudiant", "nom prenom adresseEmail cin role")
-      .populate("enseignant", "nom adresseEmail")
-      .populate("soutenance", "horaire jour lien");
-
-    // Vérifier si le stage existe
-    if (!stage) {
-      return res.status(404).json({
+    // Validation renforcée des paramètres
+    if (!id || id === 'undefined' || !mongoose.Types.ObjectId.isValid(id)) {
+      console.error('ID invalide reçu:', id);
+      return res.status(400).json({
         success: false,
-        message: "Stage introuvable pour cet ID et ce niveau.",
+        message: "ID de stage invalide ou manquant",
+        receivedId: id,
+        expectedFormat: "ObjectId MongoDB valide"
       });
     }
-    // Structurer les résultats pour l'affichage
-    const result = {
-      etudiant: {
+
+    // Recherche avec gestion d'erreur spécifique
+    const stage = await StageEte.findOne({ _id: id, niveau: type })
+      .populate("etudiant", "nom prenom adresseEmail cin role _id")  // Ajout explicitement _id
+      .populate("enseignant", "nom adresseEmail _id")
+      .populate("soutenance", "horaire jour lien _id")
+      .orFail(new Error('Stage non trouvé'));
+
+    // Construction de la réponse avec vérification des IDs
+    const responseData = {
+      etudiant: stage.etudiant ? {
+        _id: stage.etudiant._id,
         nom: stage.etudiant.nom,
         prenom: stage.etudiant.prenom,
         email: stage.etudiant.adresseEmail,
-        cin: stage.etudiant.cin,
-      },
-      enseignant: stage.enseignant
-        ? {
-            nom: stage.enseignant.nom,
-            email: stage.enseignant.adresseEmail,
-          }
-        : null,
+        cin: stage.etudiant.cin
+      } : null,
+      enseignant: stage.enseignant ? {
+        _id: stage.enseignant._id,
+        nom: stage.enseignant.nom,
+        email: stage.enseignant.adresseEmail
+      } : null,
       stage: {
+        _id: stage._id,
         titreSujet: stage.titreSujet,
         nomEntreprise: stage.nomEntreprise,
         dateDebut: stage.dateDebut,
@@ -451,28 +524,49 @@ export const getStageDetails = async (req, res) => {
           attestation: stage.attestation,
           ficheEvaluation: stage.ficheEvaluation,
         },
-        planningPublie: stage.planningPublie,
       },
-      soutenance: stage.soutenance
-        ? {
-            horaire: stage.soutenance.horaire,
-            jour: stage.soutenance.jour,
-            lien: stage.soutenance.lien,
-          }
-        : null, // Si aucune soutenance n'est affectée
+      soutenance: stage.soutenance ? {
+        _id: stage.soutenance._id,
+        horaire: stage.soutenance.horaire,
+        jour: stage.soutenance.jour,
+        lien: stage.soutenance.lien
+      } : null
     };
 
-    // Réponse avec les détails du stage
-    res.status(200).json({
+    // Vérification finale avant envoi
+    if (!responseData.stage._id) {
+      throw new Error('Structure de réponse invalide: ID manquant');
+    }
+
+    return res.status(200).json({
       success: true,
-      message: "Détails du stage récupérés avec succès.",
-      data: stage,
+      message: "Détails du stage récupérés avec succès",
+      data: responseData
     });
+
   } catch (error) {
-    res.status(500).json({
+    console.error('Erreur critique:', {
+      endpoint: '/internship/:type/:id',
+      params: req.params,
+      errorDetails: {
+        name: error.name,
+        message: error.message,
+        stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      }
+    });
+
+    if (error.message === 'Stage non trouvé') {
+      return res.status(404).json({
+        success: false,
+        message: "Aucun stage correspondant trouvé"
+      });
+    }
+
+    return res.status(500).json({
       success: false,
-      message: "Une erreur est survenue lors de la récupération du stage.",
-      error: error.message,
+      message: "Erreur de traitement",
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined,
+      requestId: req.requestId // Si vous avez un système de tracing
     });
   }
 };
@@ -493,8 +587,8 @@ export const getEnseignants = async (req, res) => {
 
 export const assignTeachersToStages = async (req, res) => {
   try {
-    const { type } = req.params; // Niveau (type)
-    const { teacherIds } = req.body; // Liste des enseignants sélectionnés
+    const { type } = req.params;
+    const { teacherIds } = req.body;
 
     if (!teacherIds || teacherIds.length === 0) {
       return res.status(400).json({
@@ -503,19 +597,7 @@ export const assignTeachersToStages = async (req, res) => {
       });
     }
 
-    // Récupérer les enseignants sélectionnés
-    const teachers = await User.find({
-      _id: { $in: teacherIds },
-      role: "enseignant",
-    }).lean();
-
-    if (teachers.length === 0) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Aucun enseignant valide trouvé." });
-    }
-
-    // Récupérer les matières enseignées par chaque enseignant
+    // Étape 1 : Récupérer le nombre de matières par enseignant depuis la collection Matiere
     const teacherMatieres = await Matiere.aggregate([
       {
         $match: {
@@ -524,37 +606,32 @@ export const assignTeachersToStages = async (req, res) => {
           },
         },
       },
-      { $group: { _id: "$enseignant", totalMatieres: { $sum: 1 } } },
+      {
+        $group: {
+          _id: "$enseignant",
+          totalMatieres: { $sum: 1 },
+        },
+      },
     ]);
 
-    // Associer les enseignants à leurs nombres de matières
-    const teacherWeights = teachers.map((teacher) => {
-      const matiereInfo = teacherMatieres.find(
-        (m) => m._id.toString() === teacher._id.toString()
-      );
-      return {
-        ...teacher,
-        totalMatieres: matiereInfo ? matiereInfo.totalMatieres : 0,
-      };
-    });
-
-    // Vérifier qu'au moins un enseignant a des matières associées
-    const totalMatieres = teacherWeights.reduce(
-      (sum, t) => sum + t.totalMatieres,
-      0
-    );
-    if (totalMatieres === 0) {
+    if (teacherMatieres.length === 0) {
       return res.status(400).json({
         success: false,
         message: "Aucun enseignant avec des matières trouvées.",
       });
     }
 
-    // Récupérer les stages non validés pour le niveau (type)
+    const totalMatieres = teacherMatieres.reduce(
+      (sum, t) => sum + t.totalMatieres,
+      0
+    );
+
+    // Étape 2 : Récupérer les stages non validés pour le niveau (type)
     const stages = await StageEte.find({
       niveau: type,
       statutSujet: "Non valide",
     });
+
     if (stages.length === 0) {
       return res.status(404).json({
         success: false,
@@ -562,32 +639,50 @@ export const assignTeachersToStages = async (req, res) => {
       });
     }
 
-    // Calculer le coefficient de répartition
+    // Étape 3 : Calcul du coefficient de répartition
     const coefficient = Math.floor(stages.length / totalMatieres);
 
-    // Distribution des stages proportionnelle
+    // Étape 4 : Distribution des stages proportionnelle
     let assignedStages = [];
     let stageIndex = 0;
 
-    teacherWeights.forEach((teacher) => {
-      const numStages = teacher.totalMatieres * coefficient;
+    teacherMatieres.forEach((tm) => {
+      const numStages = tm.totalMatieres * coefficient;
       for (let i = 0; i < numStages && stageIndex < stages.length; i++) {
-        stages[stageIndex].enseignant = teacher._id; // Assigner l'enseignant au stage
+        stages[stageIndex].enseignant = tm._id;
         assignedStages.push(stages[stageIndex]);
         stageIndex++;
       }
     });
 
-    // Assigner les stages restants
+    // Étape 5 : Répartition équitable des stages restants
     while (stageIndex < stages.length) {
-      const teacher = teacherWeights[stageIndex % teacherWeights.length];
-      stages[stageIndex].enseignant = teacher._id;
+      const tm = teacherMatieres[stageIndex % teacherMatieres.length];
+      stages[stageIndex].enseignant = tm._id;
       assignedStages.push(stages[stageIndex]);
       stageIndex++;
     }
 
-    // Sauvegarder les changements
+    // Étape 6 : Sauvegarder les modifications
     await Promise.all(assignedStages.map((stage) => stage.save()));
+    // Regrouper les stages par enseignant
+    const stagesParEnseignant = {};
+
+    assignedStages.forEach((stage) => {
+      const enseignantId = stage.enseignant.toString();
+      if (!stagesParEnseignant[enseignantId]) {
+        stagesParEnseignant[enseignantId] = [];
+      }
+      stagesParEnseignant[enseignantId].push(stage._id);
+    });
+
+    // Mettre à jour les utilisateurs enseignants avec tous leurs stages assignés
+    await Promise.all(
+      Object.entries(stagesParEnseignant).map(([enseignantId, stageIds]) =>
+        User.findByIdAndUpdate(enseignantId, {
+          $addToSet: { stagesEte: { $each: stageIds } }, // Ajoute sans doublons
+        })
+    ));
 
     res.status(200).json({
       success: true,
@@ -605,10 +700,9 @@ export const assignTeachersToStages = async (req, res) => {
 
 export const updateAssignedTeacher = async (req, res) => {
   try {
-    const { type } = req.params; // Récupérer le niveau (type) depuis les paramètres
-    const { stageId, teacherId } = req.body; // Récupérer les données du corps de la requête
+    const { type } = req.params;
+    const { stageId, teacherId } = req.body;
 
-    // Vérifier que les données nécessaires sont présentes
     if (!stageId || !teacherId) {
       return res.status(400).json({
         success: false,
@@ -616,7 +710,7 @@ export const updateAssignedTeacher = async (req, res) => {
       });
     }
 
-    // Vérifier si le stage existe et correspond au niveau (type)
+    // Vérifie si le stage existe
     const stage = await StageEte.findOne({ _id: stageId, niveau: type });
     if (!stage) {
       return res.status(404).json({
@@ -625,33 +719,50 @@ export const updateAssignedTeacher = async (req, res) => {
       });
     }
 
-    // Vérifier si l'enseignant existe et a le rôle d'enseignant
-    const teacher = await User.findOne({ _id: teacherId, role: "enseignant" });
-    if (!teacher) {
+    // Récupère l'ancien enseignant (si existant)
+    const oldTeacherId = stage.enseignant;
+
+    // Vérifie si le nouvel enseignant existe
+    const newTeacher = await User.findOne({ _id: teacherId, role: "enseignant" });
+    if (!newTeacher) {
       return res.status(404).json({
         success: false,
         message: "Enseignant introuvable ou non valide.",
       });
     }
 
-    // Mettre à jour l'enseignant assigné au stage
+    // Mise à jour du stage
     stage.enseignant = teacherId;
     await stage.save();
 
-    // Réponse en cas de succès
+    // Supprimer le stage de l'ancien enseignant
+    if (oldTeacherId && oldTeacherId.toString() !== teacherId) {
+      await User.updateOne(
+        { _id: oldTeacherId },
+        { $pull: { stagesEte: stage._id } }
+      );
+    }
+
+    // Ajouter le stage au nouvel enseignant (si pas déjà dedans)
+    if (!newTeacher.stagesEte.includes(stage._id)) {
+      newTeacher.stagesEte.push(stage._id);
+      await newTeacher.save();
+    }
+
     res.status(200).json({
       success: true,
       message: "Enseignant mis à jour avec succès pour ce stage.",
       data: {
         stageId: stage._id,
         newTeacher: {
-          id: teacher._id,
-          nom: teacher.nom,
-          prenom: teacher.prenom,
-          email: teacher.adresseEmail,
+          id: newTeacher._id,
+          nom: newTeacher.nom,
+          prenom: newTeacher.prenom,
+          email: newTeacher.adresseEmail,
         },
       },
     });
+
   } catch (error) {
     res.status(500).json({
       success: false,
@@ -865,10 +976,12 @@ export const sendPlanning = async (req, res) => {
   }
 };
 
+
+
 export const getAssignedStages = async (req, res) => {
   try {
     const { type } = req.params;
-    // Valider le paramètre "type"
+
     if (!type || typeof type !== "string") {
       return res.status(400).json({
         success: false,
@@ -877,33 +990,58 @@ export const getAssignedStages = async (req, res) => {
       });
     }
 
-    // Identifiant de l'enseignant depuis le token décodé
     const enseignantId = req.auth.userId;
 
-    // Type de niveau (par exemple : 3ING)
+    const allYears = await yearModel.find().select("year"); // 
 
-    // Rechercher les stages assignés à cet enseignant et appartenant au niveau spécifié
-    const stages = await StageEte.find({
-      enseignant: enseignantId,
-      niveau: type,
-    })
-      .populate({
-        path: "etudiant",
-        select: "nom adresseEmail", // Inclure nom et email de l'étudiant
-      })
-      .exec();
-
-    // Vérifier si des stages sont trouvés
-    if (!stages.length) {
+    if (!allYears.length) {
       return res.status(404).json({
         success: false,
-        message: "Aucun stage trouvé pour cet enseignant.",
+        message: "Aucune année académique trouvée.",
       });
     }
 
-    // Formater les résultats pour inclure les détails nécessaires
+    const validYears = allYears
+      .map((y) => {
+        if (y.year && typeof y.year === "string" && y.year.includes("-")) {
+          const parts = y.year.split("-");
+          const endYear = parseInt(parts[1]);
+          return isNaN(endYear) ? null : endYear;
+        }
+        return null;
+      })
+      .filter((year) => year !== null);
+
+    if (!validYears.length) {
+      return res.status(404).json({
+        success: false,
+        message:
+          "Aucune année académique valide n’a été trouvée dans le format attendu.",
+      });
+    }
+
+    const latestYear = Math.max(...validYears); // e.g. 2025
+
+    const stages = await StageEte.find({
+      enseignant: enseignantId,
+      niveau: type,
+      anneeStage: String(latestYear),
+    })
+      .populate([
+        {
+          path: "etudiant",
+          select: "nom adresseEmail",
+        },
+        {
+          path: "soutenance",
+          select: "horaire jour lien",
+        },
+      ])
+      .exec();
+
     const formattedStages = stages.map((stage) => ({
       titreSujet: stage.titreSujet,
+      _id: stage._id,
       nomEntreprise: stage.nomEntreprise,
       description: stage.description,
       niveau: stage.niveau,
@@ -920,19 +1058,24 @@ export const getAssignedStages = async (req, res) => {
         nom: stage.etudiant?.nom || "Non disponible",
         email: stage.etudiant?.adresseEmail || "Non disponible",
       },
+      soutenance: stage.soutenance
+        ? {
+            _id: stage.soutenance._id,
+            horaire: stage.soutenance.horaire,
+            jour: stage.soutenance.jour,
+            lien: stage.soutenance.lien,
+          }
+        : null,
     }));
 
-    // Répondre avec la liste formatée
     return res.status(200).json({
       success: true,
-      message: "Liste des stages assignés récupérée avec succès.",
+      message: `Liste des stages assignés pour l’année ${latestYear} récupérée avec succès.`,
+      anneeChoisie: latestYear,
       stages: formattedStages,
     });
   } catch (error) {
-    console.error(
-      "Erreur lors de la récupération des stages assignés :",
-      error
-    );
+    console.error("Erreur lors de la récupération des stages assignés :", error);
     return res.status(500).json({
       success: false,
       message: "Erreur interne du serveur.",
@@ -941,11 +1084,6 @@ export const getAssignedStages = async (req, res) => {
   }
 };
 
-
-
-   
-
-    
 
 export const planifierSoutenance = async (req, res) => {
   //console.log("Utilisateur connecté :", req.user);
@@ -969,8 +1107,8 @@ export const planifierSoutenance = async (req, res) => {
       });
     }
 
-  // Vérifier que le sujet est affecté à un enseignant
-   if (!stage.enseignant) {
+    // Vérifier que le sujet est affecté à un enseignant
+    if (!stage.enseignant) {
       return res.status(400).json({
         success: false,
         message: "Le sujet n'est pas encore affecté à un enseignant.",
@@ -984,7 +1122,6 @@ export const planifierSoutenance = async (req, res) => {
         message: "Accès refusé : Vous n'êtes pas l'enseignant affecté à ce sujet.",
       });
     }
-
 
     // Créer une nouvelle soutenance
     const soutenance = new SoutenanceStageEte({ horaire, jour, lien });
@@ -1044,7 +1181,6 @@ export const planifierSoutenance = async (req, res) => {
     });
   }
 };
-
 
 export const modifierSoutenance = async (req, res) => {
   const { id } = req.params; // ID de la soutenance à modifier
@@ -1121,7 +1257,6 @@ export const modifierSoutenance = async (req, res) => {
   }
 };
 
-
 export const consulterAffectationByType = async (req, res) => {
   try {
     const { type } = req.params; // Récupérer le niveau depuis l'URL
@@ -1196,7 +1331,6 @@ export const consulterAffectationByType = async (req, res) => {
   }
 };
 
-
 export const validerSujet = async (req, res) => {
   const { type, id } = req.params; // Type (premiereannee, deuxiemeannee) et ID du stage
   const { statutSujet, raison } = req.body; // Statut (Valide/Non valide) et raison (si Non valide)
@@ -1265,4 +1399,3 @@ export const validerSujet = async (req, res) => {
     });
   }
 };
-
