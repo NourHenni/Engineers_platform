@@ -12,6 +12,7 @@ import {
   addEvaluation,
   getEvaluations,
   EnvoiEmailEvaluation,
+  updateCurriculum,
 } from "../controllers/matiereController.js";
 
 import { authMiddleware } from "../middellwares/authMiddellware.js";
@@ -43,7 +44,23 @@ router.patch(
   isEnseignant,
   proposeModification
 );
-router.get("/:id/validate", authMiddleware, isAdmin, validateModification);
+//router.get("/:id/validate", authMiddleware, isAdmin, validateModification);
+
+router.patch("/:id/validate", authMiddleware, isAdmin, validateModification);
+router.get("/:id/propositions", authMiddleware, isAdmin, async (req, res) => {
+  try {
+    const matiere = await Matiere.findById(req.params.id).populate(
+      "historiquePropositions.enseignant",
+      "nom prenom email"
+    );
+
+    res.status(200).json(matiere.historiquePropositions);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.patch("/:id/curriculum", authMiddleware, isEnseignant, updateCurriculum);
 router.post("/evaluation", authMiddleware, isAdmin, EnvoiEmailEvaluation);
 router.post("/:id/evaluation", authMiddleware, isEtudiant, addEvaluation);
 router.get(
@@ -52,5 +69,6 @@ router.get(
   isAdminOrEnseignant,
   getEvaluations
 );
+//router.get("/:id/historique", authMiddleware,isAdminOrEnseignant, getHistorique);
 
 export default router;
