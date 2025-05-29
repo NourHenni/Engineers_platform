@@ -6,7 +6,6 @@ import Historique from "../models/historiqueModel.js";
 export const createMatiere = async (req, res) => {
   try {
     const {
-      enseignant,
       CodeMatiere,
       competences,
       GroupeModule,
@@ -18,9 +17,10 @@ export const createMatiere = async (req, res) => {
       NbHeuresCours,
       NbHeuresTD,
       NbHeuresTP,
+      enseignant,
       Curriculum,
-      Semestre,
-      Niveau,
+      semestre,
+      niveau,
       Annee,
       publiee,
     } = req.body;
@@ -89,13 +89,13 @@ export const createMatiere = async (req, res) => {
       errors.push("Curriculum doit être un tableau.");
     }
 
-    if (Semestre && !["S1", "S2", "S3", "S4", "S5"].includes(Semestre)) {
+    if (semestre && !["S1", "S2", "S3", "S4", "S5"].includes(semestre)) {
       errors.push(
         "Semestre doit être l'une des valeurs suivantes : S1, S2, S3, S4, S5."
       );
     }
 
-    if (Niveau && !["1ING", "2ING", "3ING"].includes(Niveau)) {
+    if (niveau && !["1", "2", "3"].includes(niveau)) {
       errors.push(
         "Niveau doit être l'une des valeurs suivantes : 1ING, 2ING, 3ING."
       );
@@ -190,11 +190,12 @@ export const getMatieres = async (req, res) => {
       matieres = await Matiere.find().populate("competences");
     } else if (userRole === "enseignant") {
       // Enseignant voit les matières qui lui sont assignées
-      matieres = await Matiere.find({ enseignant: userId }).populate(
-        "competences"
-      );
+      matieres = await Matiere.find({
+        enseignant: userId,
+        publiee: true,
+      }).populate("competences");
     } else if (userRole === "etudiant") {
-      matieres = await Matiere.find().populate("competences");
+      matieres = await Matiere.find({ publiee: true }).populate("competences");
     } else {
       return res
         .status(403)
@@ -218,13 +219,18 @@ export const getMatiereDetail = async (req, res) => {
     let matiere;
     if (userRole === "admin") {
       matiere = await Matiere.findById(matiereId)
-        .populate("competences")
+        //.populate("competences")
+        .populate("competences", "nomCompetence codeCompetence")
+        .populate("enseignant", "nom prenom")
         .populate("historiquePropositions.enseignant", "nom prenom");
     } else {
       matiere = await Matiere.findOne({
         _id: matiereId,
         publiee: true,
-      }).populate("competences");
+      })
+        // .populate("competences")
+        .populate("competences", "nomCompetence codeCompetence")
+        .populate("enseignant", "nom prenom");
     }
 
     if (!matiere) {
@@ -277,8 +283,8 @@ export const updateMatiere = async (req, res) => {
       "Curriculum",
       "Annee",
       "archived",
-      "Semestre",
-      "Niveau",
+      "semestre",
+      "niveau",
       "publiee",
       "competences",
       "enseignant",
@@ -405,8 +411,8 @@ export const updateMatiere = async (req, res) => {
     }
 
     if (
-      matiereToUpdate.Semestre &&
-      !["S1", "S2", "S3", "S4", "S5"].includes(matiereToUpdate.Semestre)
+      matiereToUpdate.semestre &&
+      !["S1", "S2", "S3", "S4", "S5"].includes(matiereToUpdate.semestre)
     ) {
       errors.push(
         "Semestre doit être l'une des valeurs suivantes : S1, S2, S3, S4, S5."
@@ -414,8 +420,8 @@ export const updateMatiere = async (req, res) => {
     }
 
     if (
-      matiereToUpdate.Niveau &&
-      !["1ING", "2ING", "3ING"].includes(matiereToUpdate.Niveau)
+      matiereToUpdate.niveau &&
+      !["1", "2", "3"].includes(matiereToUpdate.niveau)
     ) {
       errors.push(
         "Niveau doit être l'une des valeurs suivantes : 1ING, 2ING, 3ING."

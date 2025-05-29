@@ -29,7 +29,7 @@ const propositionSchema = new mongoose.Schema({
 // Section Schema
 const sectionSchema = new mongoose.Schema({
   nomSection: { type: String, required: true },
-  Description: { type: String, required: true },
+  Description: { type: String },
   AvancementSection: {
     type: String,
     enum: ["NonCommencee", "EnCours", "Terminee"],
@@ -101,13 +101,13 @@ const matiereSchema = mongoose.Schema({
     type: Number,
     required: true,
   },
-  Semestre: {
+  semestre: {
     type: String,
     required: true,
   },
-  Niveau: {
+  niveau: {
     type: String,
-    enum: ["1ING", "2ING", "3ING"],
+    enum: ["1", "2", "3"],
     required: true,
   },
 
