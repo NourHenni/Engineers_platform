@@ -147,6 +147,10 @@ const userSchema = new mongoose.Schema(
           type: String, // Pour des informations supplémentaires
           default: "",
         },
+        niveau: {
+          type: String,
+          enum: ["1", "2", "3"],
+      },
       },
     ],
   },

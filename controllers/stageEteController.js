@@ -1399,3 +1399,48 @@ export const validerSujet = async (req, res) => {
     });
   }
 };
+
+
+
+
+
+
+export const getAvailableYears = async (req, res) => {
+  try {
+    // Récupérer toutes les années distinctes des stages existants
+    const stageYears = await StageEte.distinct("anneeStage");
+
+    // Récupérer la dernière année académique créée
+    const latestAcademicYearDoc = await yearModel.findOne().sort({ createdAt: -1 });
+    let latestYear = null;
+
+    // Vérifier si le document et le champ year existent AVANT de faire le split
+    if (latestAcademicYearDoc && latestAcademicYearDoc.year) {
+      const yearParts = latestAcademicYearDoc.year.split('-');
+      if (yearParts.length === 2) {
+        latestYear = yearParts[1]; // Prend la deuxième partie
+      }
+    }
+
+    // Combiner les années des stages et la dernière année académique
+    const combinedYears = new Set(stageYears);
+    if (latestYear) {
+      combinedYears.add(latestYear);
+    }
+
+    // Convertir en tableau et trier par ordre décroissant
+    const years = Array.from(combinedYears).sort((a, b) => b - a);
+    
+    res.status(200).json({ 
+      success: true,
+      years 
+    });
+  } catch (error) {
+    console.error("Erreur lors de la récupération des années:", error);
+    res.status(500).json({ 
+      success: false,
+      message: "Erreur lors de la récupération des années disponibles.",
+      error: error.message 
+    });
+  }
+};

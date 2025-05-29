@@ -8,6 +8,7 @@ import matiereRoute from "./routes/matiereRoute.js";
 import competenceRoute from "./routes/competenceRoute.js";
 import { seedDatabase } from "./config/seed.js";
 import stageRoutes from "./routes/stageEteRoute.js";
+import academicYearRoutes from "./routes/yearRoutes.js";
 import "./template/cronjobs.js";
 
 import { authMiddleware } from "./middellwares/authMiddellware.js";
@@ -38,6 +39,7 @@ app.use("/internship", stageRoutes);
 app.use("/Competences", competenceRoute);
 app.use("/matieres", matiereRoute);
 
+app.use('/api/academic-year', academicYearRoutes); // Prefix!
 // Function to connect database, seed, and start the server
 const startServer = async () => {
   try {

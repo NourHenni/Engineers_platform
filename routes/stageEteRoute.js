@@ -26,6 +26,7 @@ import { addPeriod } from "../controllers/stageEteController.js";
 import { getAllPeriods } from "../controllers/stageEteController.js";
 import { updatePeriod } from "../controllers/stageEteController.js";
 import {deletePeriod}from "../controllers/stageEteController.js";
+import {getAvailableYears}from "../controllers/stageEteController.js";
 
 const router = express.Router();
 
@@ -81,5 +82,6 @@ router.post("/:type/:id", authMiddleware, isEnseignant, planifierSoutenance);
 router.patch("/:type/:id", authMiddleware, isEnseignant, modifierSoutenance);
 router.get("/monpv/:type/me", authMiddleware, isEtudiant,  consulterAffectationByType);
 router.patch("/valider/:type/:id", authMiddleware, isEnseignant, validerSujet);
+router.get("/years", authMiddleware, isAdmin,  getAvailableYears);
 
 export default router;

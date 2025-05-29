@@ -24,16 +24,13 @@ import {
   notifyUsersWithDiplome,
   createAcademicYear,
   FetchMe,
+  batchUpdateStudentSituation
 } from "../controllers/UserController.js";
 import { authMiddleware } from "../middellwares/authMiddellware.js";
-import {
-  isAdmin,
-  isAdminOrEnseignant,
-  isEnseignant,
-  isStudent,
-} from "../middellwares/roleMiddellware.js";
+import { isAdmin, isAdminOrEnseignant, isAdminOrStudent, isEnseignant, isStudent } from "../middellwares/roleMiddellware.js";
 
 import multer from "multer"; // Import multer to handle file uploads
+import { getLastYear } from "../controllers/appController.js";
 
 const router = express.Router();
 
@@ -61,35 +58,20 @@ router.post("/students", authMiddleware, isAdmin, upload, async (req, res) => {
 
 // Other routes
 router.get("/students", authMiddleware, isAdminOrEnseignant, getEtudiants);
-router.get("/students/:id", authMiddleware, isAdmin, getEtudiantById);
-router.patch("/students/:id", authMiddleware, isAdmin, updateEtudiantById);
-router.patch(
-  "/students/:id/password",
-  authMiddleware,
-  isAdmin,
-  updateEtudiantPassword
-);
-router.delete(
-  "/students/:id",
-  authMiddleware,
-  isAdmin,
-  deleteOrArchiveStudentById
-);
-router.patch(
-  "/years/student/:id",
-  authMiddleware,
-  isAdmin,
-  updateStudentSituation
-);
+router.get("/students/:id", authMiddleware, isAdminOrStudent, getEtudiantById);
+router.patch("/students/:id", authMiddleware, isAdminOrStudent, updateEtudiantById);
+router.patch("/students/:id/password",authMiddleware,isAdmin,updateEtudiantPassword);
+router.delete("/students/:id",authMiddleware,isAdmin,deleteOrArchiveStudentById);
+router.patch('/years/student/:id',authMiddleware, isAdmin, updateStudentSituation);
 router.put("/students/me", authMiddleware, isStudent, updateProfile);
-router.get("/student/CV/:id", authMiddleware, isStudent, getCV);
-router.get("/students/:id/CV", authMiddleware, isAdminOrEnseignant, getCV);
-router.patch("/student/CV", authMiddleware, isStudent, addCVInfo);
-router.post("/years/", authMiddleware, isAdmin, createAcademicYear);
-router.get("/years/:year", authMiddleware, isAdmin, basculerEntreAnnee);
-router.post("/years/notify", authMiddleware, isAdmin, notifyUsersWithDiplome);
+router.get("/student/CV/:id", authMiddleware,isStudent, getCV);
+router.get("/students/:id/CV", authMiddleware,isAdminOrStudent, getCV);
+router.patch('/student/CV', authMiddleware,isStudent, addCVInfo);
+router.post('/years/', authMiddleware, isAdmin, createAcademicYear);
+router.get('/years/:year', authMiddleware, isAdmin, basculerEntreAnnee);
+router.post('/years/notify', authMiddleware, isAdmin, notifyUsersWithDiplome);
 router.get("/auth/me", authMiddleware, FetchMe);
-
+router.put('/students/batch-situation', batchUpdateStudentSituation);
 // Routes for Enseignants (Teachers)
 router.post("/teachers", authMiddleware, isAdmin, upload, async (req, res) => {
   try {
