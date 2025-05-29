@@ -68,3 +68,4 @@ const competenceSchema = new mongoose.Schema({
 });
 
 export default mongoose.model("competences", competenceSchema);
+

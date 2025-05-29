@@ -1,6 +1,6 @@
 import express from "express";
 import { postInternship} from "../controllers/stageEteController.js";
-import { getInternshipsByType } from "../controllers/stageEteController.js";
+import { getInternshipsByTypeAndYear } from "../controllers/stageEteController.js";
 import { authMiddleware } from "../middellwares/authMiddellware.js";
 import {
   isEtudiant,
@@ -25,12 +25,15 @@ import { validerSujet } from "../controllers/stageEteController.js";
 import { addPeriod } from "../controllers/stageEteController.js";
 import { getAllPeriods } from "../controllers/stageEteController.js";
 import { updatePeriod } from "../controllers/stageEteController.js";
+import {deletePeriod}from "../controllers/stageEteController.js";
+import {getAvailableYears}from "../controllers/stageEteController.js";
 
 const router = express.Router();
 
-router.post("/:niveau/open", authMiddleware, isAdmin, addPeriod);
-router.get("/:niveau/open", authMiddleware, isAdmin, getAllPeriods);
-router.patch("/:niveau/open", authMiddleware, isAdmin, updatePeriod);
+router.post("/open", authMiddleware, isAdmin, addPeriod);
+router.get("/periodes", authMiddleware, isAdmin, getAllPeriods);
+router.patch("updateperiode/:id", authMiddleware, isAdmin, updatePeriod);
+router.delete("periode/:id", authMiddleware, isAdmin,deletePeriod);
 
 // Route : POST /internship/:type/post
 router.post(
@@ -46,7 +49,7 @@ router.post(
   ]),
   postInternship
 );
-router.get("/:type", authMiddleware, isAdmin, getInternshipsByType);
+router.get("/filter/:type/:anneeStage", authMiddleware, isAdmin, getInternshipsByTypeAndYear);
 router.get("/teachers", authMiddleware, isAdmin, getEnseignants);
 router.get("/:type/:id", authMiddleware, isAdminOrEnseignant, getStageDetails);
 router.post(
@@ -77,7 +80,8 @@ router.get(
 );
 router.post("/:type/:id", authMiddleware, isEnseignant, planifierSoutenance);
 router.patch("/:type/:id", authMiddleware, isEnseignant, modifierSoutenance);
-router.get("/:type/me", authMiddleware, isEtudiant,  consulterAffectationByType);
-router.patch("/:type/:id", authMiddleware, isEnseignant, validerSujet);
+router.get("/monpv/:type/me", authMiddleware, isEtudiant,  consulterAffectationByType);
+router.patch("/valider/:type/:id", authMiddleware, isEnseignant, validerSujet);
+router.get("/years", authMiddleware, isAdmin,  getAvailableYears);
 
 export default router;

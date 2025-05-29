@@ -67,7 +67,7 @@ cron.schedule("0 9 * * *", async () => {
 
     for (const period of latePeriods) {
       // Mettre à jour l'état de la période
-      period.PeriodState = "Late";
+      period.PeriodState = "Closed";
       await period.save();
 
       // Trouver les étudiants liés à cette période n'ayant pas déposé

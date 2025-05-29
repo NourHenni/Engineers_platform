@@ -89,9 +89,10 @@ export const createMatiere = async (req, res) => {
       errors.push("Curriculum doit être un tableau.");
     }
 
-    if (semestre && !["S1", "S2", "S3", "S4", "S5"].includes(semestre)) {
+
+    if (semestre && !["S1", "S2"].includes(semestre)) {
       errors.push(
-        "Semestre doit être l'une des valeurs suivantes : S1, S2, S3, S4, S5."
+        "Semestre doit être l'une des valeurs suivantes : S1, S2"
       );
     }
 
@@ -184,8 +185,10 @@ export const getMatieres = async (req, res) => {
     const userRole = req.auth.role;
 
     let matieres;
+    let query = {};
 
     if (userRole === "admin") {
+
       // Admin peut voir toutes les matières
       matieres = await Matiere.find().populate("competences");
     } else if (userRole === "enseignant") {
@@ -196,19 +199,24 @@ export const getMatieres = async (req, res) => {
       }).populate("competences");
     } else if (userRole === "etudiant") {
       matieres = await Matiere.find({ publiee: true }).populate("competences");
+
     } else {
-      return res
-        .status(403)
-        .json({ message: "Accès refusé : rôle non autorisé." });
+      return res.status(403).json({ 
+        message: "Accès refusé : Rôle non autorisé." 
+      });
     }
 
     if (!matieres || matieres.length === 0) {
+
       return res.status(404).json({ message: "Aucune matière trouvée." });
+
     }
 
     res.status(200).json(matieres);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ 
+      error: "Erreur serveur : " + error.message 
+    });
   }
 };
 export const getMatiereDetail = async (req, res) => {
@@ -219,18 +227,22 @@ export const getMatiereDetail = async (req, res) => {
     let matiere;
     if (userRole === "admin") {
       matiere = await Matiere.findById(matiereId)
+
         //.populate("competences")
         .populate("competences", "nomCompetence codeCompetence")
         .populate("enseignant", "nom prenom")
+
         .populate("historiquePropositions.enseignant", "nom prenom");
     } else {
       matiere = await Matiere.findOne({
         _id: matiereId,
         publiee: true,
+
       })
         // .populate("competences")
         .populate("competences", "nomCompetence codeCompetence")
         .populate("enseignant", "nom prenom");
+
     }
 
     if (!matiere) {
@@ -412,10 +424,12 @@ export const updateMatiere = async (req, res) => {
 
     if (
       matiereToUpdate.semestre &&
-      !["S1", "S2", "S3", "S4", "S5"].includes(matiereToUpdate.semestre)
+
+      !["S1", "S2"].includes(matiereToUpdate.semestre)
+
     ) {
       errors.push(
-        "Semestre doit être l'une des valeurs suivantes : S1, S2, S3, S4, S5."
+        "Semestre doit être l'une des valeurs suivantes : S1, S2"
       );
     }
 
@@ -488,9 +502,9 @@ export const updateMatiere = async (req, res) => {
 
     // Sauvegarder les anciennes données
     const ancienneValeurComplete = { ...matiere.toObject() }; //toObject permet de manipuler une copie des données sans affecter l'original.
-
+   
     // Mettre à jour la matière
-    const updatedMatiere = await Matiere.findByIdAndUpdate(
+       const updatedMatiere = await Matiere.findByIdAndUpdate(
       matiereId,
       matiereToUpdate,
       { new: true }
@@ -519,33 +533,7 @@ export const updateMatiere = async (req, res) => {
         .status(200)
         .json({ message: "Aucune modification effectuée." });
     }
-    if (matiereToUpdate.competences) {
-      const anciennesCompetences = existingMatiere.competences.map((c) =>
-        c.toString()
-      );
-      const nouvellesCompetences = matiereToUpdate.competences;
 
-      // Compétences à retirer
-      const competencesARetirer = anciennesCompetences.filter(
-        (id) => !nouvellesCompetences.includes(id)
-      );
-      // Compétences à ajouter
-      const competencesAAjouter = nouvellesCompetences.filter(
-        (id) => !anciennesCompetences.includes(id)
-      );
-
-      // Retirer la matière des anciennes compétences
-      await Competence.updateMany(
-        { _id: { $in: competencesARetirer } },
-        { $pull: { matieres: matiere._id } }
-      );
-
-      // Ajouter la matière aux nouvelles compétences
-      await Competence.updateMany(
-        { _id: { $in: competencesAAjouter } },
-        { $addToSet: { matieres: matiere._id } }
-      );
-    }
     // Ajouter une entrée dans l'historique uniquement si des modifications ont eu lieu
     if (Object.keys(ancienneValeur).length > 0) {
       const historiqueEntry = new Historique({
@@ -566,6 +554,7 @@ export const updateMatiere = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+
 
 export const publishOrHideMatieres = async (req, res) => {
   try {
@@ -1181,3 +1170,5 @@ export const getEvaluations = async (req, res) => {
     });
   }
 };
+
+

@@ -69,5 +69,6 @@ router.get(
   isAdminOrEnseignant,
   getEvaluations
 );
+//router.get("/:id/historique", authMiddleware,isAdminOrEnseignant, getHistorique);
 
 export default router;
