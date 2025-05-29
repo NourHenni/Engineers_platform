@@ -6,7 +6,6 @@ import Historique from "../models/historiqueModel.js";
 export const createMatiere = async (req, res) => {
   try {
     const {
-      enseignant,
       CodeMatiere,
       competences,
       GroupeModule,
@@ -18,6 +17,7 @@ export const createMatiere = async (req, res) => {
       NbHeuresCours,
       NbHeuresTD,
       NbHeuresTP,
+      enseignant,
       Curriculum,
       semestre,
       niveau,
@@ -88,6 +88,7 @@ export const createMatiere = async (req, res) => {
     if (Curriculum && !Array.isArray(Curriculum)) {
       errors.push("Curriculum doit être un tableau.");
     }
+
 
     if (semestre && !["S1", "S2"].includes(semestre)) {
       errors.push(
@@ -187,41 +188,17 @@ export const getMatieres = async (req, res) => {
     let query = {};
 
     if (userRole === "admin") {
-          matieres = await Matiere.find().populate("competences");
+
+      // Admin peut voir toutes les matières
+      matieres = await Matiere.find().populate("competences");
     } else if (userRole === "enseignant") {
       // Enseignant voit les matières qui lui sont assignées
-      matieres = await Matiere.find({ enseignant: userId }).populate(
-        "competences"
-      );
-
-
-    }else if (userRole === "etudiant") { 
-      const utilisateur = await User.findById(userId);
-      
-      if (!utilisateur) {
-        console.log("[DEBUG] Étudiant non trouvé ID:", userId); // Log
-        return res.status(404).json({ message: "Étudiant introuvable." });
-      }
-
-      // Vérification renforcée
-      if (!utilisateur.niveau || !utilisateur.semestre) {
-        console.log("[DEBUG] Données manquantes:", { // Log
-          niveau: utilisateur.niveau, 
-          semestre: utilisateur.semestre
-        });
-        return res.status(400).json({ 
-          message: "Profil étudiant incomplet (niveau/semestre manquant). Contactez l'administration." 
-        });
-      }
-
-      query = { 
+      matieres = await Matiere.find({
+        enseignant: userId,
         publiee: true,
-        niveau: utilisateur.niveau,
-        semestre: utilisateur.semestre 
-      };
-      matieres = await Matiere.find(query)
-        .populate("competences enseignant");
-
+      }).populate("competences");
+    } else if (userRole === "etudiant") {
+      matieres = await Matiere.find({ publiee: true }).populate("competences");
 
     } else {
       return res.status(403).json({ 
@@ -230,7 +207,6 @@ export const getMatieres = async (req, res) => {
     }
 
     if (!matieres || matieres.length === 0) {
-
 
       return res.status(404).json({ message: "Aucune matière trouvée." });
 
@@ -251,13 +227,22 @@ export const getMatiereDetail = async (req, res) => {
     let matiere;
     if (userRole === "admin") {
       matiere = await Matiere.findById(matiereId)
-        .populate("competences")
+
+        //.populate("competences")
+        .populate("competences", "nomCompetence codeCompetence")
+        .populate("enseignant", "nom prenom")
+
         .populate("historiquePropositions.enseignant", "nom prenom");
     } else {
       matiere = await Matiere.findOne({
         _id: matiereId,
         publiee: true,
-      }).populate("competences");
+
+      })
+        // .populate("competences")
+        .populate("competences", "nomCompetence codeCompetence")
+        .populate("enseignant", "nom prenom");
+
     }
 
     if (!matiere) {
@@ -439,7 +424,9 @@ export const updateMatiere = async (req, res) => {
 
     if (
       matiereToUpdate.semestre &&
+
       !["S1", "S2"].includes(matiereToUpdate.semestre)
+
     ) {
       errors.push(
         "Semestre doit être l'une des valeurs suivantes : S1, S2"
