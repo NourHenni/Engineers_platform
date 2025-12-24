@@ -2,19 +2,20 @@ import express from "express";
 import mongoose from "mongoose";
 import cors from "cors";
 import dotenv from "dotenv";
-import userRoutes from "./routes/UserRoute.js";
-import pfaRoutes from "./routes/pfaRoute.js";
-import matiereRoute from "./routes/matiereRoute.js";
-import competenceRoute from "./routes/competenceRoute.js";
+import userR from "./src/routes/userRoute.js";
+import pfaRoute from "./src/routes/pfaRoute.js";
+import stageRoutes from "./src/routes/stageEteRoute.js";
+import competenceRoute from "./src/routes/competenceRoute.js";
+import matiereRoute from "./src/routes/matiereRoute.js";
+import academicYearRoutes from "./src/routes/yearRoutes.js";
 import { seedDatabase } from "./config/seed.js";
-import stageRoutes from "./routes/stageEteRoute.js";
-import academicYearRoutes from "./routes/yearRoutes.js";
+
 import "./template/cronjobs.js";
 
-import { authMiddleware } from "./middellwares/authMiddellware.js";
 //begin swagger
 import swaggerUi from "swagger-ui-express";
 import { readFile } from "fs/promises";
+import { authMiddleware } from "./src/middellwares/authMiddellware.js";
 
 const app = express();
 
@@ -33,13 +34,13 @@ app.use(express.json()); // Enable middleware for parsing JSON
 
 // Routes
 
-app.use("/", userRoutes);
-app.use("/pfa", authMiddleware, pfaRoutes);
+app.use("/", userR);
+app.use("/pfa", authMiddleware, pfaRoute);
 app.use("/internship", stageRoutes);
 app.use("/Competences", competenceRoute);
 app.use("/matieres", matiereRoute);
 
-app.use('/api/academic-year', academicYearRoutes); // Prefix!
+app.use("/api/academic-year", academicYearRoutes); // Prefix!
 // Function to connect database, seed, and start the server
 const startServer = async () => {
   try {

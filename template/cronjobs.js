@@ -1,7 +1,9 @@
 import cron from "node-cron";
-import User from "../models/userModel.js";
+import User from "../src/models/userModel.js";
+import Periode from "../src/models/periodeModel.js";
+import StageEte from "../src/models/stageEteModel.js";
 import nodemailer from "nodemailer";
-import Periode from "../models/periodeModel.js";
+
 import moment from "moment";
 
 // Exemple de transporteur pour envoyer des e-mails (ici avec Nodemailer)

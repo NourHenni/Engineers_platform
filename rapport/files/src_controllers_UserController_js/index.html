@@ -1,0 +1,1492 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Plato - src\controllers\UserController.js</title>
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="">
+  <meta name="author" content="">
+
+  <!--[if lt IE 9]>
+  <script src="http://html5shim.googlecode.com/svn/trunk/html5.js"></script>
+  <![endif]-->
+
+  <link href="../../assets/css/vendor/morris.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/bootstrap.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/font-awesome.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/codemirror.css" rel="stylesheet">
+  <link href="../../assets/css/plato.css" rel="stylesheet">
+  <link href="../../assets/css/plato-file.css" rel="stylesheet">
+
+</head>
+
+<body>
+
+<div class="navbar navbar-fixed-top">
+  <div class="container">
+    <a class="navbar-brand" href="http://github.com/es-analysis/plato">Plato on Github</a>
+    <ul class="nav navbar-nav">
+      <li>
+        <a href="../../index.html">Report Home</a>
+      </li>
+    </ul>
+  </div>
+</div>
+
+<div class="jumbotron">
+  <div class="container">
+    <h1>src\controllers\UserController.js</h1>
+  </div>
+</div>
+
+<div class="container aggregate-stats">
+  <div class="row">
+    <div class="col-md-6">
+      <h2 class="header">Maintainability <a href="http://blogs.msdn.com/b/codeanalysis/archive/2007/11/20/maintainability-index-range-and-meaning.aspx"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="A value between 0 and 100 that represents the relative ease of maintaining the code. A high value means better maintainability." data-original-title="Maintainability Index"  data-container="body"></i></a></h2>
+      <p class="stat">51.72</p>
+    </div>
+    <div class="col-md-6">
+      <h2 class="header">Lines of code <i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Source Lines of Code / Logical Lines of Code" data-original-title="SLOC/LSLOC" data-container="body"></i></h2>
+      <p class="stat">1375</p>
+    </div>
+  </div>
+  <div class="row historical">
+    <div class="col-md-6">
+      <p id="chart_historical_maint" class="chart"></p>
+    </div>
+    <div class="col-md-6">
+      <p id="chart_historical_sloc" class="chart"></p>
+    </div>
+  </div>
+  <div class="row">
+    <div class="col-md-6">
+      <h2 class="header">Difficulty  <a href="http://en.wikipedia.org/wiki/Halstead_complexity_measures"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="The difficulty measure is related to the difficulty of the program to write or understand." data-original-title="Difficulty" data-container="body"></i></a></h2>
+      <p class="stat">100.04</p>
+    </div>
+    <div class="col-md-6">
+      <h2 class="header">Estimated Errors  <a href="http://en.wikipedia.org/wiki/Halstead_complexity_measures"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Halstead's delivered bugs is an estimate for the number of errors in the implementation." data-original-title="Delivered Bugs" data-container="body"></i></a></h2>
+      <p class="stat">12.52</p>
+    </div>
+  </div>
+</div>
+
+<div class="container charts">
+  <div class="row">
+    <h2 class="header">Function weight</h2>
+  </div>
+  <div class="row">
+    <div class="col-md-6">
+      <h3 class="chart-header">By Complexity <a href="http://en.wikipedia.org/wiki/Cyclomatic_complexity"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="This metric counts the number of distinct paths through a block of code. Lower values are better." data-original-title="Cyclomatic Complexity" data-container="body"></i></a></h3>
+      <div id="fn-by-complexity" class="stat"></div>
+    </div>
+    <div class="col-md-6">
+      <h3 class="chart-header">By SLOC  <i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Source Lines of Code / Logical Lines of Code" data-original-title="SLOC/LSLOC" data-container="body"></i></h3>
+      <div id="fn-by-sloc" class="stat"></div>
+    </div>
+  </div>
+</div>
+
+<div class="container">
+  <div class="row">
+    <textarea id="file-source" class="col-md-12">import User from &quot;../models/userModel.js&quot;;
+import bcrypt from &quot;bcrypt&quot;;
+import jwt from &quot;jsonwebtoken&quot;;
+import xlsx from &quot;xlsx&quot;;
+import { sendEmail } from &quot;../../services/emailservice.js&quot;;
+import pfaModel from &quot;../models/pfaModel.js&quot;;
+import stageEteModel from &quot;../models/stageEteModel.js&quot;;
+// Adjust the path as needed
+import Matieres from &quot;../models/matiereModel.js&quot;;
+import Year from &quot;../models/yearModel.js&quot;;
+import Competences from &quot;../models/competenceModel.js&quot;;
+
+import nodemailer from &quot;nodemailer&quot;;
+import dotenv from &quot;dotenv&quot;;
+
+// Load environment variables from .env file
+dotenv.config();
+
+////////////////////////ALL USERS//////////////////////////
+export const login = async (req, res) =&gt; {
+  try {
+    // Find the user by CIN
+    let foundUser = await User.findOne({ cin: req.body.cin });
+    if (!foundUser) {
+      return res.status(401).json({
+        message: &quot;CIN ou mot de passe incorrect&quot;,
+      });
+    }
+
+    // Check if the user is archived
+    if (foundUser.archivee) {
+      return res.status(403).json({
+        message:
+          &quot;Votre compte est archivé. Veuillez contacter l&#039;administrateur.&quot;,
+      });
+    }
+
+    // Compare the provided password with the hashed password stored in the database
+    const validPassword = await bcrypt.compare(
+      req.body.password,
+      foundUser.password
+    );
+    if (!validPassword) {
+      return res.status(401).json({
+        message: &quot;CIN ou mot de passe incorrect&quot;,
+      });
+    }
+
+    const token = jwt.sign(
+      { userId: foundUser._id, role: foundUser.role }, // Add role to the token payload
+      process.env.JWT_SECRET,
+      { expiresIn: &quot;24h&quot; }
+    );
+
+    // Respond with the token
+    res.status(200).json({
+      token,
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: error.message,
+    });
+  }
+};
+export const logout = async (req, res) =&gt; {
+  try {
+    // Perform any server-side cleanup if needed (e.g., logging user actions)
+
+    res.status(200).json({
+      message: &quot;User logged out successfully&quot;,
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: error.message,
+    });
+  }
+};
+
+export const FetchMe = (req, res) =&gt; {
+  console.log(&quot;req: &quot;);
+
+  // Chercher l&#039;utilisateur dans la base de données
+  User.findOne({ _id: req.auth.userId })
+    .then((user) =&gt; {
+      if (user) {
+        return res.json({ model: user }); // Renvoie le rôle de l&#039;utilisateur
+      }
+      return res.status(404).json({ message: &quot;Utilisateur non trouvé&quot; });
+    })
+    .catch((error) =&gt; {
+      res.status(500).json({ message: &quot;Erreur serveur&quot;, error: error.message });
+    });
+};
+
+///////////////////////////////////////////////////////////
+//////////////////////ETUDIANT/////////////////////////////
+export const createEtudiant = async (req, res) =&gt; {
+  try {
+    // Set the default role to &#039;etudiant&#039; if no role is provided
+    if (!req.body.role) {
+      req.body.role = &quot;etudiant&quot;;
+    }
+
+    // Check if the role is &#039;etudiant&#039;, if not, return an error
+    if (req.body.role !== &quot;etudiant&quot;) {
+      return res.status(403).json({
+        success: false,
+        message: &quot;Only users with the role &#039;etudiant&#039; can be created.&quot;,
+      });
+    }
+
+    // Check if the email already exists in the database
+    const foundUser = await User.findOne({
+      adresseEmail: req.body.adresseEmail,
+    });
+    if (foundUser) {
+      return res.status(400).json({
+        success: false,
+        message: &quot;Email existe déjà&quot;, // Email already exists
+      });
+    }
+
+    // Validate that the required fields are provided for &#039;etudiant&#039;
+    const requiredFields = [
+      &quot;situation&quot;,
+      &quot;baccalaureat&quot;,
+      &quot;annee_bac&quot;,
+      &quot;moyenne_bac&quot;,
+      &quot;mention&quot;,
+      &quot;est_prepa&quot;,
+      &quot;universite&quot;,
+      &quot;etablissement&quot;,
+      &quot;type_licence&quot;,
+      &quot;specialite&quot;,
+      &quot;annee_licence&quot;,
+    ];
+
+    for (const field of requiredFields) {
+      if (req.body[field] === undefined || req.body[field] === null) {
+        return res.status(400).json({
+          success: false,
+          message: `Le champ &#039;${field}&#039; est requis pour créer un étudiant.`,
+        });
+      }
+    }
+
+    // Extract year from dateDeNaissance
+    const dateDeNaissance = new Date(req.body.dateDeNaissance);
+    const birthYear = dateDeNaissance.getFullYear();
+
+    // Generate the password: concat of nom + prenom + year of birth
+    const generatedPassword = `${req.body.nom}${req.body.prenom}${birthYear}`;
+
+    // Hash the generated password before saving
+    const hashedPassword = await bcrypt.hash(generatedPassword, 10);
+
+    // Create the new user object
+    const user = new User({
+      ...req.body,
+      password: hashedPassword,
+    });
+
+    // Save the new user to the database
+    await user.save();
+
+    // Remove the password from the response data for security
+    const { password, ...newUser } = user.toObject();
+
+    // Send the email with CIN and password
+    try {
+      await sendEmail(
+        req.body.adresseEmail,
+        req.body.prenom,
+        req.body.nom,
+        req.body.cin,
+        generatedPassword
+      );
+    } catch (emailError) {
+      console.error(&quot;Failed to send email:&quot;, emailError.message);
+      return res.status(500).json({
+        success: false,
+        message: &quot;User created, but failed to send email.&quot;,
+      });
+    }
+
+    // Return the newly created user without the password
+    res.status(200).json({
+      model: newUser,
+      generatedPassword, // Optional: return the generated password for reference
+      message: &quot;success&quot;,
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: error.message,
+    });
+  }
+};
+export const getEtudiants = async (req, res) =&gt; {
+  try {
+    const { year } = req.body;
+
+    // Construct the query object
+    const query = { role: &quot;etudiant&quot; };
+
+    // If a year is provided in the request body, add it to the query
+    if (year) {
+      query.annee_entree_isamm = { $lt: year }; // Students with annee_entree_isamm &lt; year
+    }
+
+    // Fetch the students based on the constructed query
+    const users = await User.find(query);
+
+    res.status(200).json({
+      model: users,
+      message: &quot;success&quot;,
+    });
+  } catch (error) {
+    res.status(400).json({
+      message: error.message,
+    });
+  }
+};
+
+export const getEtudiantById = async (req, res) =&gt; {
+  try {
+    const { id } = req.params;
+    const user = await User.findOne({ _id: id, role: &quot;etudiant&quot; });
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: &quot;User not found or not an etudiant&quot;,
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      model: user,
+      message: &quot;User retrieved successfully&quot;,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+export const updateEtudiantById = async (req, res) =&gt; {
+  try {
+    const { id } = req.params;
+    const updateData = req.body;
+
+    // Find the user first to compare the CIN
+    const existingUser = await User.findById(id);
+
+    if (!existingUser || existingUser.role !== &quot;etudiant&quot;) {
+      return res.status(404).json({
+        success: false,
+        message: &quot;User not found or not an etudiant&quot;,
+      });
+    }
+
+    // Check if CIN is being updated
+    const isCINUpdated = updateData.cin &amp;&amp; updateData.cin !== existingUser.cin;
+
+    // Update the user
+    const updatedUser = await User.findOneAndUpdate(
+      { _id: id, role: &quot;etudiant&quot; },
+      updateData,
+      { new: true, runValidators: true }
+    );
+
+    if (!updatedUser) {
+      return res.status(404).json({
+        success: false,
+        message: &quot;User not found or not an etudiant&quot;,
+      });
+    }
+
+    // Send email if CIN is updated
+    if (isCINUpdated) {
+      try {
+        await sendEmail(
+          updatedUser.adresseEmail,
+          updatedUser.prenom,
+          updatedUser.nom,
+          updatedUser.cin, // New CIN
+          &quot;Votre CIN a été mis à jour avec succès.&quot; // Optional message
+        );
+      } catch (emailError) {
+        console.error(&quot;Error sending email:&quot;, emailError.message);
+        return res.status(500).json({
+          success: false,
+          message: &quot;User updated, but failed to send email.&quot;,
+        });
+      }
+    }
+
+    res.status(200).json({
+      success: true,
+      model: updatedUser,
+      message: &quot;User updated successfully&quot;,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+export const updateEtudiantPassword = async (req, res) =&gt; {
+  try {
+    const { id } = req.params;
+    const { nouveau, confirmationNouveau } = req.body;
+
+    // Check if the new password matches the confirmation
+    if (nouveau !== confirmationNouveau) {
+      return res.status(400).json({
+        success: false,
+        message: &quot;Le nouveau mot de passe et la confirmation ne sont pas égaux&quot;,
+      });
+    }
+
+    // Find the user by ID and role
+    const user = await User.findOne({ _id: id, role: &quot;etudiant&quot; });
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: &quot;Utilisateur non trouvé ou pas un étudiant&quot;,
+      });
+    }
+
+    // Hash the new password
+    const hashedPassword = await bcrypt.hash(nouveau, 10);
+
+    // Update the password directly in the database
+    await User.updateOne({ _id: id }, { $set: { password: hashedPassword } });
+
+    // Optionally, send a notification email
+    try {
+      await sendEmail(
+        user.adresseEmail,
+        user.nom,
+        user.prenom,
+        user.cin,
+        nouveau
+      );
+    } catch (emailError) {
+      console.error(&quot;Échec de l&#039;envoi de l&#039;email:&quot;, emailError.message);
+      return res.status(500).json({
+        success: false,
+        message: &quot;Mot de passe modifié, mais l&#039;email n&#039;a pas pu être envoyé.&quot;,
+      });
+    }
+
+    // Respond with success
+    res.status(200).json({
+      success: true,
+      message: &quot;Mot de passe modifié avec succès et un email a été envoyé&quot;,
+    });
+  } catch (error) {
+    // Handle unexpected errors
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+export const deleteOrArchiveStudentById = async (req, res) =&gt; {
+  try {
+    const { action } = req.body; // Expecting &quot;delete&quot; or &quot;archive&quot;
+    const { id } = req.params; // ID of the student to be processed
+
+    // Find the student by ID
+    const student = await User.findById(id);
+
+    if (!student) {
+      return res.status(404).json({
+        success: false,
+        message: &quot;Étudiant non trouvé&quot;,
+      });
+    }
+
+    // Check if the user is a student
+    if (student.role !== &quot;etudiant&quot;) {
+      return res.status(403).json({
+        success: false,
+        message: &quot;Action non autorisée pour ce rôle&quot;,
+      });
+    }
+
+    // Perform the action based on the &quot;action&quot; parameter
+    if (action === &quot;delete&quot;) {
+      await User.findByIdAndDelete(id); // Permanently delete the student
+      return res.status(200).json({
+        success: true,
+        message: &quot;Étudiant supprimé avec succès&quot;,
+      });
+    } else if (action === &quot;archive&quot;) {
+      // Archive the student by updating only the `archivee` field
+      await User.updateOne(
+        { _id: id },
+        { $set: { archivee: true } } // Only update the `archivee` field
+      );
+      return res.status(200).json({
+        success: true,
+        message: &quot;Étudiant archivé avec succès&quot;,
+      });
+    } else {
+      return res.status(400).json({
+        success: false,
+        message: &quot;Action invalide. Utilisez &#039;delete&#039; ou &#039;archive&#039;.&quot;,
+      });
+    }
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+export const addStudentsFromFile = async (req, res) =&gt; {
+  try {
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: &quot;No file uploaded.&quot;,
+      });
+    }
+
+    // Parse the Excel file
+    const workbook = xlsx.read(req.file.buffer, { type: &quot;buffer&quot; });
+    const sheetName = workbook.SheetNames[0];
+    const sheet = workbook.Sheets[sheetName];
+    const studentsData = xlsx.utils.sheet_to_json(sheet);
+
+    // Loop through each student record
+    for (let student of studentsData) {
+      const {
+        nom,
+        prenom,
+        cin,
+        genre,
+        dateDeNaissance,
+        gouvernorat,
+        addresse,
+        ville,
+        code_postal,
+        nationalite,
+        telephone,
+        annee_entree_isamm,
+        adresseEmail,
+        situation,
+        baccalaureat,
+        annee_bac,
+        moyenne_bac,
+        mention,
+        est_prepa,
+        universite,
+        etablissement,
+        type_licence,
+        specialite,
+        annee_licence,
+        annee_sortie_isamm,
+      } = student;
+
+      // Validate required fields
+      if (
+        !nom ||
+        !prenom ||
+        !cin ||
+        !adresseEmail ||
+        !dateDeNaissance ||
+        !genre ||
+        !gouvernorat ||
+        !addresse ||
+        !ville ||
+        !code_postal ||
+        !nationalite ||
+        !telephone ||
+        !annee_entree_isamm
+      ) {
+        return res.status(400).json({
+          success: false,
+          message:
+            &quot;Incorrect file format. Ensure all required fields are present.&quot;,
+        });
+      }
+
+      // Check if CIN already exists
+      const existingStudent = await User.findOne({ cin });
+      if (existingStudent) {
+        return res.status(400).json({
+          success: false,
+          message: `CIN ${cin} already exists. Please correct the file.`,
+        });
+      }
+
+      // Generate password
+      const yearOfBirth = new Date(dateDeNaissance).getFullYear();
+      const password = `${nom}${prenom}${yearOfBirth}`;
+      const hashedPassword = await bcrypt.hash(password, 10);
+
+      // Create a new student
+      const newStudent = new User({
+        nom,
+        prenom,
+        cin,
+        genre,
+        dateDeNaissance,
+        gouvernorat,
+        addresse,
+        ville,
+        code_postal,
+        nationalite,
+        telephone,
+        annee_entree_isamm,
+        adresseEmail,
+        password: hashedPassword,
+        role: &quot;etudiant&quot;,
+        archivee: false,
+        situation,
+        baccalaureat,
+        annee_bac,
+        moyenne_bac,
+        mention,
+        est_prepa,
+        universite,
+        etablissement,
+        type_licence,
+        specialite,
+        annee_licence,
+        annee_sortie_isamm,
+      });
+
+      // Save the student and send email
+      await newStudent.save();
+      await sendEmail(adresseEmail, prenom, nom, cin, password);
+    }
+
+    res.status(201).json({
+      success: true,
+      message: &quot;Students created successfully, and emails have been sent.&quot;,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+export const batchUpdateStudentSituation = async (req, res) =&gt; {
+  try {
+    const { studentIds, nouvelleSituation, anneeAcademique } = req.body;
+
+    // Validate input
+    const validSituations = [&quot;passe&quot;, &quot;redouble&quot;, &quot;diplome&quot;];
+    if (!validSituations.includes(nouvelleSituation)) {
+      return res.status(400).json({ error: &quot;Invalid situation value&quot; });
+    }
+
+    if (!anneeAcademique || !/^\d{4}-\d{4}$/.test(anneeAcademique)) {
+      return res.status(400).json({
+        error: &quot;Invalid or missing academic year format (e.g., 2024-2025)&quot;,
+      });
+    }
+
+    const students = await User.find({ _id: { $in: studentIds } });
+
+    if (students.length !== studentIds.length) {
+      return res.status(404).json({ error: &quot;Some students not found&quot; });
+    }
+
+    // Check if any student is already graduated
+    const graduatedStudents = students.filter(
+      (s) =&gt; s.situation === &quot;diplome&quot; &amp;&amp; nouvelleSituation !== &quot;diplome&quot;
+    );
+    if (graduatedStudents.length &gt; 0) {
+      return res.status(400).json({
+        error: `Cannot modify situation for ${graduatedStudents.length} graduated students`,
+        graduatedStudents: graduatedStudents.map((s) =&gt; s._id),
+      });
+    }
+
+    const updatePromises = students.map(async (student) =&gt; {
+      // Save previous situation
+      const previousSituation = student.situation;
+
+      // Update situation
+      if (nouvelleSituation === &quot;passe&quot;) {
+        if (student.niveau &lt; 3) {
+          student.niveau += 1;
+          student.situation = &quot;passe&quot;;
+        } else if (student.niveau === 3) {
+          student.situation = &quot;diplome&quot;;
+          student.annee_sortie_isamm = new Date().getFullYear();
+        }
+      } else {
+        student.situation = nouvelleSituation;
+      }
+
+      // Update academic status
+      const existingStatusIndex = student.academic_statuses.findIndex(
+        (status) =&gt; status.academic_year === anneeAcademique
+      );
+
+      if (student.situation === &quot;diplome&quot; &amp;&amp; existingStatusIndex === -1) {
+        return null; // Skip this student
+      }
+
+      if (existingStatusIndex !== -1) {
+        student.academic_statuses[existingStatusIndex].status =
+          student.situation;
+      } else {
+        student.academic_statuses.push({
+          academic_year: anneeAcademique,
+          status: student.situation,
+        });
+      }
+
+      return student.save();
+    });
+
+    const results = await Promise.all(updatePromises);
+    const successfulUpdates = results.filter((r) =&gt; r !== null);
+
+    res.status(200).json({
+      message: `${successfulUpdates.length} student situations updated successfully`,
+      skipped: results.length - successfulUpdates.length,
+      students: successfulUpdates,
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: &quot;Internal server error&quot; });
+  }
+};
+export const updateStudentSituation = async (req, res) =&gt; {
+  try {
+    const { id } = req.params;
+    const { nouvelleSituation, anneeAcademique } = req.body;
+
+    // Validate input
+    const validSituations = [&quot;passe&quot;, &quot;redouble&quot;, &quot;diplome&quot;];
+    if (!validSituations.includes(nouvelleSituation)) {
+      return res.status(400).json({ error: &quot;Invalid situation value&quot; });
+    }
+
+    if (!anneeAcademique || !/^\d{4}-\d{4}$/.test(anneeAcademique)) {
+      return res.status(400).json({
+        error: &quot;Invalid or missing academic year format (e.g., 2024-2025)&quot;,
+      });
+    }
+
+    // Find the student
+    const student = await User.findById(id);
+    if (!student) {
+      return res.status(404).json({ error: &quot;Student not found&quot; });
+    }
+
+    // Prevent modification if the student is already graduated
+    // Only prevent if trying to change FROM graduated status
+    if (student.situation === &quot;diplome&quot; &amp;&amp; nouvelleSituation !== &quot;diplome&quot;) {
+      return res
+        .status(400)
+        .json({ error: &quot;Cannot modify situation for graduated student&quot; });
+    }
+
+    // Save previous situation for comparison
+    const previousSituation = student.situation;
+
+    // Handle the situation update
+    if (nouvelleSituation === &quot;passe&quot;) {
+      if (student.niveau &lt; 3) {
+        student.niveau += 1;
+        student.situation = &quot;passe&quot;;
+      } else if (student.niveau === 3) {
+        student.situation = &quot;diplome&quot;;
+        student.annee_sortie_isamm = new Date().getFullYear();
+      }
+    } else {
+      student.situation = nouvelleSituation;
+    }
+
+    // Check again: if the situation is diplome now and no status entry exists yet, block
+    const existingStatusIndex = student.academic_statuses.findIndex(
+      (status) =&gt; status.academic_year === anneeAcademique
+    );
+
+    if (student.situation === &quot;diplome&quot; &amp;&amp; existingStatusIndex === 0) {
+      return res.status(400).json({
+        error: &quot;Cannot add a new academic status for a graduated student&quot;,
+      });
+    }
+
+    if (existingStatusIndex !== -1) {
+      // Update existing status entry
+      student.academic_statuses[existingStatusIndex].status = student.situation;
+      student.academic_statuses[existingStatusIndex].niveau = student.niveau;
+    } else {
+      // Add new academic year entry
+      student.academic_statuses.push({
+        academic_year: anneeAcademique,
+        status: student.situation,
+        niveau: student.niveau,
+      });
+    }
+
+    await student.save();
+
+    res.status(200).json({
+      message: &quot;Situation and academic status updated successfully&quot;,
+      student,
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: &quot;Internal server error&quot; });
+  }
+};
+
+export const createAcademicYear = async (req, res) =&gt; {
+  try {
+    const { anneeUniversitaire } = req.body;
+
+    if (!anneeUniversitaire) {
+      return res.status(400).json({ error: &quot;année universitaire is required&quot; });
+    }
+
+    // Check if the year already exists
+
+    // Create a new year
+    const newYear = new Year({ year: anneeUniversitaire });
+    await newYear.save();
+
+    // Update students&#039; data for the new year
+    await User.updateMany(
+      {},
+      {
+        $set: {
+          stageete: null, // Clear internships
+          pfas: [],
+          pfa: null, // Clear PFA
+        },
+      }
+    );
+
+    await Matieres.updateMany(
+      {},
+      {
+        $set: {
+          enseignant: null, // Clear enseignant
+        },
+      }
+    );
+
+    res.status(201).json({ message: &quot;New academic year created successfully&quot; });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: &quot;Internal server error&quot; });
+  }
+};
+
+export const getCV = async (req, res) =&gt; {
+  try {
+    // Determine which user ID to use (either logged-in user or specified ID)
+    const userId = req.params.id === &quot;me&quot; ? req.auth.userId : req.params.id;
+
+    // Find the Pfa object where etudiant matches the user ID
+    const pfa = await pfaModel.findOne({ etudiants: userId });
+
+    // Find the StageEte object where etudiant matches the user ID
+    const stageEte = await stageEteModel.findOne({ etudiant: userId });
+
+    // Find the user&#039;s cvinfos
+    const user = await User.findById(userId);
+    const cvinfos = user ? user.cvinfos : [];
+
+    // Check if no Pfa or StageEte found
+    if (!pfa &amp;&amp; !stageEte &amp;&amp; cvinfos.length === 0) {
+      return res.status(404).json({
+        message: &quot;No Pfa, StageEte or CV info found for the given student ID&quot;,
+      });
+    }
+
+    res.status(200).json({
+      cv: {
+        pfa: pfa || null,
+        stageEte: stageEte || null,
+        cvinfos: cvinfos || [], // Include cvinfos
+      },
+      message: &quot;success&quot;,
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: error.message,
+    });
+  }
+};
+
+export const addCVInfo = async (req, res) =&gt; {
+  try {
+    const { diplomes, certifications, langues, experiences } = req.body;
+
+    // Vérification si au moins une des informations est fournie
+    if (!diplomes &amp;&amp; !certifications &amp;&amp; !langues &amp;&amp; !experiences) {
+      return res
+        .status(400)
+        .json({ message: &quot;At least one CV field is required&quot; });
+    }
+
+    const userId = req.auth.userId; // Extraire l&#039;ID de l&#039;utilisateur du middleware d&#039;authentification
+
+    // Trouver l&#039;utilisateur et mettre à jour les champs spécifiques du CV
+    const updatedUser = await User.findByIdAndUpdate(
+      userId,
+      {
+        $set: {
+          &quot;cvinfos.diplomes&quot;: diplomes || [], // Mettre à jour les diplômes (s&#039;il y en a)
+          &quot;cvinfos.certifications&quot;: certifications || [], // Mettre à jour les certifications
+          &quot;cvinfos.langues&quot;: langues || [], // Mettre à jour les langues
+          &quot;cvinfos.experiences&quot;: experiences || [], // Mettre à jour les expériences professionnelles
+        },
+      },
+      { new: true, runValidators: true }
+    );
+
+    if (!updatedUser) {
+      return res.status(404).json({ message: &quot;User not found&quot; });
+    }
+
+    res.status(200).json({
+      message: &quot;CV information updated successfully&quot;,
+      user: updatedUser,
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: error.message,
+    });
+  }
+};
+
+export const basculerEntreAnnee = async (req, res) =&gt; {
+  try {
+    const { year } = req.params; // Extraire l&#039;année de la requête
+
+    // Étape 1 : Obtenir la liste des utilisateurs dont annee_entree_isamm est &lt;= l&#039;année fournie
+    const users = await User.find({
+      annee_entree_isamm: { $lte: year },
+      role: &quot;etudiant&quot;,
+    });
+
+    // Étape 2 : Ajouter le statut pour l&#039;année demandée pour chaque étudiant
+    const usersWithStatus = users.map((user) =&gt; {
+      // Trouver le statut pour l&#039;année académique spécifiée dans academic_statuses
+      const statusForYear = user.academic_statuses.find((status) =&gt; {
+        // Comparer l&#039;année de statut avec l&#039;année donnée (en prenant la première année de la plage)
+        const [startYear] = status.academic_year.split(&quot;-&quot;);
+        return parseInt(startYear, 10) === parseInt(year, 10); // Comparer avec l&#039;année de début
+      });
+
+      return {
+        ...user.toObject(),
+        statusForYear: statusForYear ? statusForYear.status : &quot;Non défini&quot;, // Si pas trouvé, &quot;Non défini&quot;
+      };
+    });
+
+    // Étape 3 : Récupérer la liste des PFAs et StageEtes pour l&#039;année spécifiée
+    const pfas = await pfaModel.find({ annee: year });
+    const stagesEte = await stageEteModel.find({ anneeStage: year });
+
+    // Étape 4 : Récupérer toutes les compétences
+    const competences = await Competences.find();
+
+    // Étape 5 : Récupérer toutes les matières (vous pouvez filtrer selon le semestre ou d&#039;autres critères)
+    const matieres = await Matieres.find();
+
+    // Étape 6 : Envoyer les utilisateurs avec leurs statuts, PFAs, StageEtes, Compétences et Matières
+    res.status(200).json({
+      message: &quot;success&quot;,
+      users: usersWithStatus,
+      pfas: pfas,
+      stagesEte: stagesEte,
+      competences: competences,
+      matieres: matieres,
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({
+      message: error.message,
+    });
+  }
+};
+
+export const updateProfile = async (req, res) =&gt; {
+  try {
+    // Use the user ID from the authMiddleware (attached to req.auth)
+    const userId = req.auth.userId;
+
+    const { adresseEmail, addresse, telephone } = req.body;
+
+    // Validate the email format
+    const emailRegex = /^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,6}$/;
+    if (adresseEmail &amp;&amp; !emailRegex.test(adresseEmail)) {
+      return res.status(400).json({ error: &quot;Invalid email format&quot; });
+    }
+
+    // Validate phone number format (optional)
+    if (telephone &amp;&amp; !/^\d{8,10}$/.test(telephone)) {
+      return res.status(400).json({ error: &quot;Invalid phone number format&quot; });
+    }
+
+    // Find the logged-in user by ID
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ error: &quot;User not found&quot; });
+    }
+
+    // Update the fields if provided
+    if (adresseEmail) {
+      user.adresseEmail = adresseEmail;
+    }
+    if (addresse) {
+      user.addresse = addresse;
+    }
+    if (telephone) {
+      user.telephone = telephone;
+    }
+
+    // Save the updated user data
+    await user.save();
+
+    res.status(200).json({
+      message: &quot;Profile updated successfully&quot;,
+      user,
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: &quot;Internal server error&quot; });
+  }
+};
+
+/////////////////////////////////////////////////////////////
+//////////////////////ENSEIGNANT//////////////////////////
+export const createEnseignant = async (req, res) =&gt; {
+  try {
+    // Set the default role to &#039;enseignant&#039; if no role is provided
+    if (!req.body.role) {
+      req.body.role = &quot;enseignant&quot;;
+    }
+
+    // Check if the role is &#039;enseignant&#039;, if not, return an error
+    if (req.body.role !== &quot;enseignant&quot;) {
+      return res.status(403).json({
+        success: false,
+        message: &quot;Only users with the role &#039;enseignant&#039; can be created.&quot;,
+      });
+    }
+
+    // Check if the email already exists in the database
+    const foundUser = await User.findOne({
+      adresseEmail: req.body.adresseEmail,
+    });
+    if (foundUser) {
+      return res.status(400).json({
+        success: false,
+        message: &quot;Email existe déjà&quot;, // Email already exists
+      });
+    }
+
+    // Validate that dateDeNaissance is provided
+    if (!req.body.dateDeNaissance) {
+      return res.status(400).json({
+        success: false,
+        message: &quot;La date de naissance est requise.&quot;, // Date of birth is required
+      });
+    }
+
+    // Validate that grade is provided
+    if (!req.body.grade) {
+      return res.status(400).json({
+        success: false,
+        message: &quot;Le champ &#039;grade&#039; est requis pour créer un enseignant.&quot;, // Grade is required for enseignant
+      });
+    }
+
+    // Extract year from dateDeNaissance
+    const dateDeNaissance = new Date(req.body.dateDeNaissance);
+    const birthYear = dateDeNaissance.getFullYear();
+
+    // Generate the password: concat of nom + prenom + year of birth
+    const generatedPassword = `${req.body.nom}${req.body.prenom}${birthYear}`;
+
+    // Hash the generated password before saving
+    const hashedPassword = await bcrypt.hash(generatedPassword, 10);
+
+    // Create the new user object
+    const user = new User({
+      ...req.body,
+      password: hashedPassword,
+    });
+
+    // Save the new user to the database
+    await user.save();
+
+    // Remove the password from the response data for security
+    const { password, ...newUser } = user.toObject();
+
+    // Send the email with CIN and password
+    try {
+      await sendEmail(
+        req.body.adresseEmail,
+        req.body.prenom,
+        req.body.nom,
+        req.body.cin,
+        generatedPassword
+      );
+    } catch (emailError) {
+      console.error(&quot;Failed to send email:&quot;, emailError.message);
+      return res.status(500).json({
+        success: false,
+        message: &quot;User created, but failed to send email.&quot;,
+      });
+    }
+    // Return the newly created user without the password
+    res.status(200).json({
+      model: newUser,
+      generatedPassword, // Optional: return the generated password for reference
+      message: &quot;success&quot;,
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: error.message,
+    });
+  }
+};
+export const getEnseignants = async (req, res) =&gt; {
+  try {
+    const users = await User.find({ role: &quot;enseignant&quot; });
+    res.status(200).json({
+      model: users,
+      message: &quot;success&quot;,
+    });
+  } catch (error) {
+    res.status(400).json({
+      message: error.message,
+    });
+  }
+};
+export const getEnseignantById = async (req, res) =&gt; {
+  try {
+    const { id } = req.params;
+    const user = await User.findOne({ _id: id, role: &quot;enseignant&quot; });
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: &quot;User not found or not an enseignant&quot;,
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      model: user,
+      message: &quot;User retrieved successfully&quot;,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+export const updateEnseignantById = async (req, res) =&gt; {
+  try {
+    const { id } = req.params;
+    const updateData = req.body;
+
+    // Retrieve the existing user before update to compare CIN
+    const existingUser = await User.findOne({ _id: id, role: &quot;enseignant&quot; });
+    if (!existingUser) {
+      return res.status(404).json({
+        success: false,
+        message: &quot;User not found or not an enseignant&quot;,
+      });
+    }
+
+    // Check if CIN is being updated
+    const isCINUpdated = existingUser.cin !== updateData.cin;
+
+    const updatedUser = await User.findOneAndUpdate(
+      { _id: id, role: &quot;enseignant&quot; },
+      updateData,
+      { new: true, runValidators: true }
+    );
+
+    if (!updatedUser) {
+      return res.status(404).json({
+        success: false,
+        message: &quot;User not found or not an enseignant&quot;,
+      });
+    }
+
+    // If CIN is updated, send an email
+    if (isCINUpdated) {
+      await sendEmail(
+        updatedUser.adresseEmail,
+        updatedUser.nom,
+        updatedUser.prenom,
+        updatedUser.cin,
+        updatedUser.password
+      );
+    }
+
+    res.status(200).json({
+      success: true,
+      model: updatedUser,
+      message: &quot;User updated successfully&quot;,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+export const updateEnseignantPassword = async (req, res) =&gt; {
+  try {
+    const { id } = req.params;
+    const { nouveau, confirmationNouveau } = req.body;
+
+    if (nouveau !== confirmationNouveau) {
+      return res.status(400).json({
+        success: false,
+        message: &quot;Le nouveau mot de passe et la confirmation ne sont pas égaux&quot;,
+      });
+    }
+
+    const user = await User.findOne({ _id: id, role: &quot;enseignant&quot; });
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: &quot;Utilisateur non trouvé ou pas un enseignant&quot;,
+      });
+    }
+
+    const hashedPassword = await bcrypt.hash(nouveau, 10);
+    user.password = hashedPassword;
+    await user.save();
+
+    // Send email with the new password
+    await sendEmail(
+      user.adresseEmail,
+      user.nom,
+      user.prenom,
+      user.cin,
+      nouveau
+    );
+
+    res.status(200).json({
+      success: true,
+      message: &quot;Mot de passe modifié avec succès et un email a été envoyé&quot;,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+export const deleteOrArchiveEnseignantById = async (req, res) =&gt; {
+  try {
+    const { id } = req.params;
+    const { action } = req.body; // action can be &#039;delete&#039; or &#039;archive&#039;
+
+    // Find the enseignant by ID and check if they exist
+    const enseignant = await User.findOne({ _id: id, role: &quot;enseignant&quot; });
+
+    if (!enseignant) {
+      return res.status(404).json({
+        success: false,
+        message: &quot;Utilisateur non trouvé ou pas un enseignant&quot;,
+      });
+    }
+
+    // Perform the action based on the &#039;action&#039; parameter
+    if (action === &quot;delete&quot;) {
+      await User.findByIdAndDelete(id); // Permanently delete the enseignant
+      return res.status(200).json({
+        success: true,
+        message: &quot;Utilisateur supprimé avec succès&quot;,
+      });
+    } else if (action === &quot;archive&quot;) {
+      enseignant.archivee = true; // Set the archivee attribute to true
+      await enseignant.save();
+      return res.status(200).json({
+        success: true,
+        message: &quot;Utilisateur archivé avec succès&quot;,
+      });
+    } else {
+      return res.status(400).json({
+        success: false,
+        message: &quot;Action invalide. Utilisez &#039;delete&#039; ou &#039;archive&#039;.&quot;,
+      });
+    }
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+export const addTeachersFromFile = async (req, res) =&gt; {
+  try {
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: &quot;No file uploaded.&quot;,
+      });
+    }
+
+    // Parse the Excel file
+    const workbook = xlsx.read(req.file.buffer, { type: &quot;buffer&quot; });
+    const sheetName = workbook.SheetNames[0];
+    const sheet = workbook.Sheets[sheetName];
+    const teachersData = xlsx.utils.sheet_to_json(sheet);
+
+    // Loop through each teacher record
+    for (let teacher of teachersData) {
+      const {
+        nom,
+        prenom,
+        cin,
+        genre,
+        dateDeNaissance,
+        gouvernorat,
+        addresse,
+        ville,
+        code_postal,
+        nationalite,
+        telephone,
+        annee_entree_isamm,
+        adresseEmail,
+        grade,
+      } = teacher;
+
+      // Validate required fields
+      if (
+        !nom ||
+        !prenom ||
+        !cin ||
+        !adresseEmail ||
+        !dateDeNaissance ||
+        !genre ||
+        !gouvernorat ||
+        !addresse ||
+        !ville ||
+        !code_postal ||
+        !nationalite ||
+        !telephone ||
+        !annee_entree_isamm ||
+        !grade
+      ) {
+        return res.status(400).json({
+          success: false,
+          message:
+            &quot;Incorrect file format. Ensure all required fields are present.&quot;,
+        });
+      }
+
+      // Check if CIN already exists
+      const existingTeacher = await User.findOne({ cin });
+      if (existingTeacher) {
+        return res.status(400).json({
+          success: false,
+          message: `CIN ${cin} already exists. Please correct the file.`,
+        });
+      }
+
+      // Generate password
+      const yearOfBirth = new Date(dateDeNaissance).getFullYear();
+      const password = `${nom}${prenom}${yearOfBirth}`;
+      const hashedPassword = await bcrypt.hash(password, 10);
+
+      // Create a new teacher
+      const newTeacher = new User({
+        nom,
+        prenom,
+        cin,
+        genre,
+        dateDeNaissance,
+        gouvernorat,
+        addresse,
+        ville,
+        code_postal,
+        nationalite,
+        telephone,
+        annee_entree_isamm,
+        adresseEmail,
+        grade,
+        password: hashedPassword,
+        role: &quot;enseignant&quot;,
+        archivee: false,
+      });
+
+      // Save the teacher and send email
+      await newTeacher.save();
+      await sendEmail(adresseEmail, prenom, nom, cin, password);
+    }
+
+    res.status(201).json({
+      success: true,
+      message: &quot;Teachers created successfully, and emails have been sent.&quot;,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+export const notifyUsersWithDiplome = async (req, res) =&gt; {
+  try {
+    // Get all users with situation = &#039;diplome&#039;
+    const users = await User.find({ situation: &quot;diplome&quot; });
+
+    if (users.length === 0) {
+      return res
+        .status(404)
+        .json({ message: &quot;No users found with situation &#039;diplome&#039;.&quot; });
+    }
+
+    // Send email to each user
+    for (let user of users) {
+      await sendEmailold(user.adresseEmail, user.firstName, user.lastName);
+    }
+
+    res.status(200).json({
+      message:
+        &quot;Emails sent successfully to all users with situation &#039;diplome&#039;.&quot;,
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: &quot;Error sending email notifications.&quot; });
+  }
+};
+////////////////////////////////////////////////////////////////////
+
+// Create a reusable transporter object using environment variables for configuration
+const transporter = nodemailer.createTransport({
+  service: process.env.MAILER_SERVICE_PROVIDER, // Use the email service provider from env
+  host: process.env.HOST, // SMTP host
+  port: process.env.PORT_SLL, // SSL port
+  secure: true, // Use secure connection
+  auth: {
+    user: process.env.MAILER_EMAIL_ID, // Sender&#039;s email from env
+    pass: process.env.MAILER_PASSWORD, // Sender&#039;s email password or app password from env
+  },
+});
+
+// Define the sendEmail function
+const sendEmailold = async (to, firstName, lastName) =&gt; {
+  const mailOptions = {
+    from: process.env.MAILER_EMAIL_ID, // Sender&#039;s email from env
+    to: to,
+    subject: &quot;Update Your CV on the Platform&quot;,
+    text: `Dear ${firstName} ${lastName},\n\nWe noticed that your situation is marked as &#039;diplome&#039;. Please remember to update your CV on the platform.\n\nBest regards, The Team.`,
+  };
+
+  try {
+    await transporter.sendMail(mailOptions);
+    console.log(&quot;Email sent successfully to:&quot;, to);
+  } catch (error) {
+    console.error(&quot;Error sending email:&quot;, error);
+    throw new Error(&quot;Error sending email&quot;);
+  }
+};</textarea>
+  </div>
+</div>
+
+<footer class="footer">
+  <div class="container">
+    <p>.</p>
+  </div>
+</footer>
+
+<script type="text/html" id="complexity-popover-template">
+  <div class="complexity-notice">
+    Complexity : {{ cyclomatic }} <br>
+    Length : {{ halstead.length }} <br>
+    Difficulty : {{ halstead.difficulty.toFixed(2) }} <br>
+    Est # bugs : {{ halstead.bugs.toFixed(2) }}<br>
+  </div>
+</script>
+
+<script type="text/javascript" src="../../assets/scripts/bundles/core-bundle.js"></script>
+<script type="text/javascript" src="../../assets/scripts/bundles/codemirror.js"></script>
+<script type="text/javascript" src="../../assets/scripts/codemirror.markpopovertext.js"></script>
+<script type="text/javascript" src="report.js"></script>
+<script type="text/javascript" src="report.history.js"></script>
+<script type="text/javascript" src="../../assets/scripts/plato-file.js"></script>
+</body>
+</html>

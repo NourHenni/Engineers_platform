@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Plato - src\routes\pfaRoute.js</title>
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="">
+  <meta name="author" content="">
+
+  <!--[if lt IE 9]>
+  <script src="http://html5shim.googlecode.com/svn/trunk/html5.js"></script>
+  <![endif]-->
+
+  <link href="../../assets/css/vendor/morris.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/bootstrap.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/font-awesome.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/codemirror.css" rel="stylesheet">
+  <link href="../../assets/css/plato.css" rel="stylesheet">
+  <link href="../../assets/css/plato-file.css" rel="stylesheet">
+
+</head>
+
+<body>
+
+<div class="navbar navbar-fixed-top">
+  <div class="container">
+    <a class="navbar-brand" href="http://github.com/es-analysis/plato">Plato on Github</a>
+    <ul class="nav navbar-nav">
+      <li>
+        <a href="../../index.html">Report Home</a>
+      </li>
+    </ul>
+  </div>
+</div>
+
+<div class="jumbotron">
+  <div class="container">
+    <h1>src\routes\pfaRoute.js</h1>
+  </div>
+</div>
+
+<div class="container aggregate-stats">
+  <div class="row">
+    <div class="col-md-6">
+      <h2 class="header">Maintainability <a href="http://blogs.msdn.com/b/codeanalysis/archive/2007/11/20/maintainability-index-range-and-meaning.aspx"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="A value between 0 and 100 that represents the relative ease of maintaining the code. A high value means better maintainability." data-original-title="Maintainability Index"  data-container="body"></i></a></h2>
+      <p class="stat">43.50</p>
+    </div>
+    <div class="col-md-6">
+      <h2 class="header">Lines of code <i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Source Lines of Code / Logical Lines of Code" data-original-title="SLOC/LSLOC" data-container="body"></i></h2>
+      <p class="stat">187</p>
+    </div>
+  </div>
+  <div class="row historical">
+    <div class="col-md-6">
+      <p id="chart_historical_maint" class="chart"></p>
+    </div>
+    <div class="col-md-6">
+      <p id="chart_historical_sloc" class="chart"></p>
+    </div>
+  </div>
+  <div class="row">
+    <div class="col-md-6">
+      <h2 class="header">Difficulty  <a href="http://en.wikipedia.org/wiki/Halstead_complexity_measures"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="The difficulty measure is related to the difficulty of the program to write or understand." data-original-title="Difficulty" data-container="body"></i></a></h2>
+      <p class="stat">14.92</p>
+    </div>
+    <div class="col-md-6">
+      <h2 class="header">Estimated Errors  <a href="http://en.wikipedia.org/wiki/Halstead_complexity_measures"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Halstead's delivered bugs is an estimate for the number of errors in the implementation." data-original-title="Delivered Bugs" data-container="body"></i></a></h2>
+      <p class="stat">0.95</p>
+    </div>
+  </div>
+</div>
+
+<div class="container charts">
+  <div class="row">
+    <h2 class="header">Function weight</h2>
+  </div>
+  <div class="row">
+    <div class="col-md-6">
+      <h3 class="chart-header">By Complexity <a href="http://en.wikipedia.org/wiki/Cyclomatic_complexity"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="This metric counts the number of distinct paths through a block of code. Lower values are better." data-original-title="Cyclomatic Complexity" data-container="body"></i></a></h3>
+      <div id="fn-by-complexity" class="stat"></div>
+    </div>
+    <div class="col-md-6">
+      <h3 class="chart-header">By SLOC  <i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Source Lines of Code / Logical Lines of Code" data-original-title="SLOC/LSLOC" data-container="body"></i></h3>
+      <div id="fn-by-sloc" class="stat"></div>
+    </div>
+  </div>
+</div>
+
+<div class="container">
+  <div class="row">
+    <textarea id="file-source" class="col-md-12">import express, { Router } from &quot;express&quot;;
+import {
+  fetchPfas,
+  getPeriodes,
+  updateDelais,
+  fecthPfaById,
+  changeState,
+  publishPfas,
+  addPeriod,
+  sendListePfa,
+  fetchPublishedPfa,
+  ajouterSujetPfa,
+  getAllPfasByTeacher,
+  getPfaByIdForTeacher,
+  modifyPfaSubject,
+  deletePfa,
+  getPfasByTeacherForStudents,
+  choosePfaSubjects,
+  updateAcceptedPfa,
+  automatedAssignment,
+  manualAssignment,
+  publishAffectedPfas,
+  sendListePfaAffected,
+  fetchAssignedPfa,
+  fetchMyPfa,
+  ajouterSoutenance,
+  modifierSoutenance,
+  publierOuMasquerSoutenances,
+  sendPlanningSoutenances,
+  fetchPlanningSoutenances,
+  getPfaByAnnee,
+  getPeriod,
+  getStudentsPfa,
+  fetchPublishedPfaCodes,
+  fetchPfaChoices,
+  fetchPfaChoiceById,
+  fetchStudentNiveau,
+  getPfaChoicesByStudent,
+  getEnseignantsAyantDeposePFA,
+  getSoutenancesByTeacher,
+  fetchStudentSoutenance,
+} from &quot;../controllers/pfaController.js&quot;;
+
+import {
+  isAdmin,
+  isAdminOrStudent,
+  isEnseignant,
+  isEtudiant,
+} from &quot;../middellwares/roleMiddellware.js&quot;;
+
+const router = express.Router();
+
+/* -------------------------------------------------------------------------- */
+/*                                 Admin Routes                               */
+/* -------------------------------------------------------------------------- */
+
+//1.1.POST request
+router.post(&quot;/open&quot;, isAdmin, addPeriod); //OK
+
+//1.3 GET request
+router.get(&quot;/open&quot;, isAdmin, getPeriodes); //OK
+
+//1.3 GET PERIOD
+router.get(&quot;/open/:id&quot;, isAdmin, getPeriod); //OK
+//1.2.PATCH request
+router.patch(&quot;/open&quot;, isAdmin, updateDelais); //OK
+
+//3.1.GET request
+router.get(&quot;/getPfas&quot;, isAdmin, fetchPfas); //OK
+
+//3.1.&amp; 4.1.GET request
+router.get(&quot;/getPfas/:idPFA&quot;, isAdminOrStudent, fecthPfaById);
+
+//3.1.PATCH request
+router.patch(&quot;/ChangeStatePFA/:idPFA&quot;, isAdmin, changeState); //OK
+
+//3.3.PATCH request
+router.patch(&quot;/publish/:response&quot;, isAdmin, publishPfas); //OK
+
+//3.4.POST request
+router.post(&quot;/list/send&quot;, isAdmin, sendListePfa); //OK
+
+// GET PFA CHOICES
+router.get(&quot;/pfasChoice/:id&quot;, isAdmin, fetchPfaChoiceById); // ok
+//7.2.PATCH request
+router.patch(&quot;/assign&quot;, isAdmin, automatedAssignment); //ok
+
+//7.3.PATCH request
+router.patch(
+  &quot;/:pfaId/assign/student/:studentId/:secondStudentId?&quot;,
+  isAdmin,
+  manualAssignment
+); //OK
+
+//7.4.POST request
+router.post(&quot;/publish/pfas/:response&quot;, isAdmin, publishAffectedPfas); //ok
+
+//7.5.POST request
+router.post(&quot;/list/pfas/send&quot;, isAdmin, sendListePfaAffected); //ok
+
+//8.1.POST request
+router.post(&quot;/soutenances&quot;, isAdmin, ajouterSoutenance); //ok
+
+//8.2.GET request
+router.get(&quot;/pfa&quot;, isAdmin, fetchPlanningSoutenances); //ok
+
+// ADD FOR REACT
+router.get(&quot;/list/soutenances&quot;, isAdmin, fetchPlanningSoutenances); // OK
+
+//ADDDDD
+// ADD FOR REACT
+router.get(&quot;/enseignants/pfas&quot;, isAdmin, getEnseignantsAyantDeposePFA); // OK
+
+//8.3.PATCH request
+router.patch(&quot;/:id/soutenances&quot;, isAdmin, modifierSoutenance); //ok
+
+//8.4.POST request
+router.post(&quot;/publish/:response&quot;, isAdmin, publierOuMasquerSoutenances); //ok
+
+//8.5.POST request
+router.post(&quot;/list/send/soutenances&quot;, isAdmin, sendPlanningSoutenances); //OK
+
+//GET request
+router.get(&quot;/getPfaAnnee/:annee&quot;, isAdmin, getPfaByAnnee);
+
+/* -------------------------------------------------------------------------- */
+/*                                 Teacher Routes                             */
+/* -------------------------------------------------------------------------- */
+
+//2.1.POST request
+router.post(&quot;/post&quot;, isEnseignant, ajouterSujetPfa); //ok
+
+//2.2.GET request - consulter tous les sujets
+router.get(&quot;/mine&quot;, isEnseignant, getAllPfasByTeacher); //ok
+
+//2.2.GET request - consulter tous les sujets
+router.get(&quot;/students&quot;, isEnseignant, getStudentsPfa); //no
+
+//2.2.GET request - les informations d&#039;un sujet
+router.get(&quot;/:id/mine&quot;, isEnseignant, getPfaByIdForTeacher); //pk
+
+//2.2.PATCH request - Modifier les infos d&#039;un sujet PFA
+router.patch(&quot;/:id/mine&quot;, isEnseignant, modifyPfaSubject); //no
+
+//2.3.Delete request
+router.delete(&quot;/:id&quot;, isEnseignant, deletePfa); //ok
+
+//// soutenance
+router.get(&quot;/mesSoutenances&quot;, isEnseignant, getSoutenancesByTeacher); //pk
+
+/* -------------------------------------------------------------------------- */
+/*                                 Student Routes                             */
+/* -------------------------------------------------------------------------- */
+
+//5.1.PATCH request
+router.patch(&quot;/choiceSubject&quot;, isEtudiant, choosePfaSubjects); //ok
+
+//5.2.PATCH request
+router.patch(&quot;/updateChoice&quot;, isEtudiant, updateAcceptedPfa);
+
+//GET request
+router.get(&quot;/&quot;, isEtudiant, getPfasByTeacherForStudents);
+
+// GET REQUEST -FETCH CODE PFAS
+router.get(&quot;/publishedCode&quot;, isEtudiant, fetchPublishedPfaCodes); //ok
+
+// GET PFA CHOICES
+router.get(&quot;/pfasChoices&quot;, isAdminOrStudent, fetchPfaChoices);
+
+// GET PFA CHOICES
+router.get(&quot;/getChoices&quot;, isEtudiant, getPfaChoicesByStudent);
+
+//GET request
+router.get(&quot;/getPublishedPfas&quot;, isAdminOrStudent, fetchPublishedPfa); //OK
+
+//GET request
+router.get(&quot;/getAssignedPfas&quot;, isEtudiant, fetchAssignedPfa);
+
+//10.1.GET request
+router.get(&quot;/student/minee&quot;, isEtudiant, fetchMyPfa);
+
+//GET STUDENT PAR NIVEAU
+router.get(&quot;/studentsPfas&quot;, fetchStudentNiveau);
+
+//// GET SOUTENANCE
+router.get(&quot;/sudent/mySoutenance&quot;, isEtudiant, fetchStudentSoutenance);
+export default router;</textarea>
+  </div>
+</div>
+
+<footer class="footer">
+  <div class="container">
+    <p>.</p>
+  </div>
+</footer>
+
+<script type="text/html" id="complexity-popover-template">
+  <div class="complexity-notice">
+    Complexity : {{ cyclomatic }} <br>
+    Length : {{ halstead.length }} <br>
+    Difficulty : {{ halstead.difficulty.toFixed(2) }} <br>
+    Est # bugs : {{ halstead.bugs.toFixed(2) }}<br>
+  </div>
+</script>
+
+<script type="text/javascript" src="../../assets/scripts/bundles/core-bundle.js"></script>
+<script type="text/javascript" src="../../assets/scripts/bundles/codemirror.js"></script>
+<script type="text/javascript" src="../../assets/scripts/codemirror.markpopovertext.js"></script>
+<script type="text/javascript" src="report.js"></script>
+<script type="text/javascript" src="report.history.js"></script>
+<script type="text/javascript" src="../../assets/scripts/plato-file.js"></script>
+</body>
+</html>

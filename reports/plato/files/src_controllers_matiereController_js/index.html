@@ -1,0 +1,1289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Plato - src\controllers\matiereController.js</title>
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="">
+  <meta name="author" content="">
+
+  <!--[if lt IE 9]>
+  <script src="http://html5shim.googlecode.com/svn/trunk/html5.js"></script>
+  <![endif]-->
+
+  <link href="../../assets/css/vendor/morris.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/bootstrap.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/font-awesome.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/codemirror.css" rel="stylesheet">
+  <link href="../../assets/css/plato.css" rel="stylesheet">
+  <link href="../../assets/css/plato-file.css" rel="stylesheet">
+
+</head>
+
+<body>
+
+<div class="navbar navbar-fixed-top">
+  <div class="container">
+    <a class="navbar-brand" href="http://github.com/es-analysis/plato">Plato on Github</a>
+    <ul class="nav navbar-nav">
+      <li>
+        <a href="../../index.html">Report Home</a>
+      </li>
+    </ul>
+  </div>
+</div>
+
+<div class="jumbotron">
+  <div class="container">
+    <h1>src\controllers\matiereController.js</h1>
+  </div>
+</div>
+
+<div class="container aggregate-stats">
+  <div class="row">
+    <div class="col-md-6">
+      <h2 class="header">Maintainability <a href="http://blogs.msdn.com/b/codeanalysis/archive/2007/11/20/maintainability-index-range-and-meaning.aspx"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="A value between 0 and 100 that represents the relative ease of maintaining the code. A high value means better maintainability." data-original-title="Maintainability Index"  data-container="body"></i></a></h2>
+      <p class="stat">48.76</p>
+    </div>
+    <div class="col-md-6">
+      <h2 class="header">Lines of code <i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Source Lines of Code / Logical Lines of Code" data-original-title="SLOC/LSLOC" data-container="body"></i></h2>
+      <p class="stat">1172</p>
+    </div>
+  </div>
+  <div class="row historical">
+    <div class="col-md-6">
+      <p id="chart_historical_maint" class="chart"></p>
+    </div>
+    <div class="col-md-6">
+      <p id="chart_historical_sloc" class="chart"></p>
+    </div>
+  </div>
+  <div class="row">
+    <div class="col-md-6">
+      <h2 class="header">Difficulty  <a href="http://en.wikipedia.org/wiki/Halstead_complexity_measures"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="The difficulty measure is related to the difficulty of the program to write or understand." data-original-title="Difficulty" data-container="body"></i></a></h2>
+      <p class="stat">95.07</p>
+    </div>
+    <div class="col-md-6">
+      <h2 class="header">Estimated Errors  <a href="http://en.wikipedia.org/wiki/Halstead_complexity_measures"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Halstead's delivered bugs is an estimate for the number of errors in the implementation." data-original-title="Delivered Bugs" data-container="body"></i></a></h2>
+      <p class="stat">11.09</p>
+    </div>
+  </div>
+</div>
+
+<div class="container charts">
+  <div class="row">
+    <h2 class="header">Function weight</h2>
+  </div>
+  <div class="row">
+    <div class="col-md-6">
+      <h3 class="chart-header">By Complexity <a href="http://en.wikipedia.org/wiki/Cyclomatic_complexity"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="This metric counts the number of distinct paths through a block of code. Lower values are better." data-original-title="Cyclomatic Complexity" data-container="body"></i></a></h3>
+      <div id="fn-by-complexity" class="stat"></div>
+    </div>
+    <div class="col-md-6">
+      <h3 class="chart-header">By SLOC  <i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Source Lines of Code / Logical Lines of Code" data-original-title="SLOC/LSLOC" data-container="body"></i></h3>
+      <div id="fn-by-sloc" class="stat"></div>
+    </div>
+  </div>
+</div>
+
+<div class="container">
+  <div class="row">
+    <textarea id="file-source" class="col-md-12">import Matiere from &quot;../models/matiereModel.js&quot;;
+import nodemailer from &quot;nodemailer&quot;;
+import Competence from &quot;../models/competenceModel.js&quot;;
+import User from &quot;../models/userModel.js&quot;;
+import Historique from &quot;../models/historiqueModel.js&quot;;
+export const createMatiere = async (req, res) =&gt; {
+  try {
+    const {
+      CodeMatiere,
+      competences,
+      GroupeModule,
+      CoeffGroupeModule,
+      Nom,
+      Credit,
+      Coefficient,
+      VolumeHoraire,
+      NbHeuresCours,
+      NbHeuresTD,
+      NbHeuresTP,
+      enseignant,
+      Curriculum,
+      semestre,
+      niveau,
+      Annee,
+      publiee,
+    } = req.body;
+    // Vérifier si une matière avec le même CodeMatiere existe déjà
+    const matiereExiste = await Matiere.findOne({ CodeMatiere });
+    if (matiereExiste) {
+      return res
+        .status(400)
+        .json({ error: &quot;Une matière avec ce code existe déjà.&quot; });
+    }
+
+    // Liste des erreurs
+    const errors = [];
+
+    // Validation des attributs spécifiques
+    if (!Nom || typeof Nom !== &quot;string&quot; || Nom.trim().length &lt; 3) {
+      errors.push(
+        &quot;Le nom de la matière est obligatoire et doit contenir au moins 3 caractères.&quot;
+      );
+    }
+
+    if (
+      !CodeMatiere ||
+      typeof CodeMatiere !== &quot;string&quot; ||
+      CodeMatiere.trim().length &lt; 3
+    ) {
+      errors.push(
+        &quot;Le code matière est obligatoire et doit contenir au moins 3 caractères.&quot;
+      );
+    }
+
+    if (Credit !== undefined &amp;&amp; (typeof Credit !== &quot;number&quot; || Credit &lt;= 0)) {
+      errors.push(&quot;Le crédit doit être un nombre positif.&quot;);
+    }
+
+    if (
+      Coefficient !== undefined &amp;&amp;
+      (typeof Coefficient !== &quot;number&quot; || Coefficient &lt;= 0)
+    ) {
+      errors.push(&quot;Le coefficient doit être un nombre positif.&quot;);
+    }
+
+    if (
+      VolumeHoraire !== undefined &amp;&amp;
+      (typeof VolumeHoraire !== &quot;number&quot; || VolumeHoraire &lt;= 0)
+    ) {
+      errors.push(&quot;Le volume horaire doit être un nombre positif.&quot;);
+    }
+
+    if (
+      NbHeuresCours &amp;&amp;
+      (typeof NbHeuresCours !== &quot;number&quot; || NbHeuresCours &lt; 0)
+    ) {
+      errors.push(&quot;NbHeuresCours doit être un nombre non négatif.&quot;);
+    }
+
+    if (NbHeuresTD &amp;&amp; (typeof NbHeuresTD !== &quot;number&quot; || NbHeuresTD &lt; 0)) {
+      errors.push(&quot;NbHeuresTD doit être un nombre non négatif.&quot;);
+    }
+
+    if (NbHeuresTP &amp;&amp; (typeof NbHeuresTP !== &quot;number&quot; || NbHeuresTP &lt; 0)) {
+      errors.push(&quot;NbHeuresTP doit être un nombre non négatif.&quot;);
+    }
+
+    if (Curriculum &amp;&amp; !Array.isArray(Curriculum)) {
+      errors.push(&quot;Curriculum doit être un tableau.&quot;);
+    }
+
+
+    if (semestre &amp;&amp; ![&quot;S1&quot;, &quot;S2&quot;].includes(semestre)) {
+      errors.push(
+        &quot;Semestre doit être l&#039;une des valeurs suivantes : S1, S2&quot;
+      );
+    }
+
+    if (niveau &amp;&amp; ![&quot;1&quot;, &quot;2&quot;, &quot;3&quot;].includes(niveau)) {
+      errors.push(
+        &quot;Niveau doit être l&#039;une des valeurs suivantes : 1ING, 2ING, 3ING.&quot;
+      );
+    }
+
+    if (Annee &amp;&amp; (typeof Annee !== &quot;number&quot; || Annee &lt; 2000 || Annee &gt; 3000)) {
+      errors.push(&quot;Annee doit être une année valide entre 2000 et 3000.&quot;);
+    }
+
+    if (publiee &amp;&amp; typeof publiee !== &quot;boolean&quot;) {
+      errors.push(&quot;publiee doit être un booléen.&quot;);
+    }
+
+    if (competences &amp;&amp; !Array.isArray(competences)) {
+      errors.push(&quot;competences doit être un tableau.&quot;);
+    }
+
+    if (
+      GroupeModule &amp;&amp;
+      (typeof GroupeModule !== &quot;string&quot; || GroupeModule.trim() === &quot;&quot;)
+    ) {
+      errors.push(&quot;GroupeModule doit être une chaîne de caractères non vide.&quot;);
+    }
+
+    if (
+      CoeffGroupeModule &amp;&amp;
+      (typeof CoeffGroupeModule !== &quot;number&quot; || CoeffGroupeModule &lt;= 0)
+    ) {
+      errors.push(&quot;CoeffGroupeModule doit être un nombre positif.&quot;);
+    }
+    // Validation des enseignants
+    if (enseignant) {
+      const enseignantExiste = await User.findById(enseignant);
+      if (!enseignantExiste) {
+        errors.push(&quot;L&#039;enseignant spécifié n&#039;existe pas.&quot;);
+      } else if (enseignantExiste.role !== &quot;enseignant&quot;) {
+        errors.push(&quot;L&#039;utilisateur spécifié n&#039;a pas le rôle d&#039;enseignant.&quot;);
+      }
+    }
+
+    // Validation des compétences
+    if (competences &amp;&amp; Array.isArray(competences) &amp;&amp; competences.length &gt; 0) {
+      const competencesValides = await Competence.find({
+        _id: { $in: competences },
+      });
+      if (competencesValides.length !== competences.length) {
+        errors.push(&quot;Certaines compétences spécifiées n&#039;existent pas.&quot;);
+      }
+    }
+
+    // Retourner toutes les erreurs si elles existent
+    if (errors.length &gt; 0) {
+      return res.status(400).json({ errors });
+    }
+
+    // Création et sauvegarde de la matière
+    const matiere = new Matiere(req.body);
+
+    await matiere.save();
+    // Mettre à jour les compétences associées
+    if (req.body.competences &amp;&amp; req.body.competences.length &gt; 0) {
+      for (const competenceId of req.body.competences) {
+        const competence = await Competence.findById(competenceId);
+        if (!competence) {
+          console.warn(`Compétence avec l&#039;ID ${competenceId} introuvable.`);
+          continue;
+        }
+
+        // Ajouter l&#039;ID de la matière à la liste des matières de la compétence
+        if (!competence.matieres.includes(matiere._id)) {
+          competence.matieres.push(matiere._id);
+          await competence.save(); // Sauvegarder la mise à jour
+        }
+      }
+    }
+
+    res.status(201).json(matiere);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+export const getMatieres = async (req, res) =&gt; {
+  try {
+    const userId = req.auth.userId;
+    const userRole = req.auth.role;
+
+    let matieres;
+    let query = {};
+
+    if (userRole === &quot;admin&quot;) {
+
+      // Admin peut voir toutes les matières
+      matieres = await Matiere.find().populate(&quot;competences&quot;);
+    } else if (userRole === &quot;enseignant&quot;) {
+      // Enseignant voit les matières qui lui sont assignées
+      matieres = await Matiere.find({
+        enseignant: userId,
+        publiee: true,
+      }).populate(&quot;competences&quot;);
+    } else if (userRole === &quot;etudiant&quot;) {
+      matieres = await Matiere.find({ publiee: true }).populate(&quot;competences&quot;);
+
+    } else {
+      return res.status(403).json({ 
+        message: &quot;Accès refusé : Rôle non autorisé.&quot; 
+      });
+    }
+
+    if (!matieres || matieres.length === 0) {
+
+      return res.status(404).json({ message: &quot;Aucune matière trouvée.&quot; });
+
+    }
+
+    res.status(200).json(matieres);
+  } catch (error) {
+    res.status(500).json({ 
+      error: &quot;Erreur serveur : &quot; + error.message 
+    });
+  }
+};
+export const getMatiereDetail = async (req, res) =&gt; {
+  try {
+    const matiereId = req.params.id;
+    const userRole = req.auth.role;
+
+    let matiere;
+    if (userRole === &quot;admin&quot;) {
+      matiere = await Matiere.findById(matiereId)
+
+        //.populate(&quot;competences&quot;)
+        .populate(&quot;competences&quot;, &quot;nomCompetence codeCompetence&quot;)
+        .populate(&quot;enseignant&quot;, &quot;nom prenom&quot;)
+
+        .populate(&quot;historiquePropositions.enseignant&quot;, &quot;nom prenom&quot;);
+    } else {
+      matiere = await Matiere.findOne({
+        _id: matiereId,
+        publiee: true,
+
+      })
+        // .populate(&quot;competences&quot;)
+        .populate(&quot;competences&quot;, &quot;nomCompetence codeCompetence&quot;)
+        .populate(&quot;enseignant&quot;, &quot;nom prenom&quot;);
+
+    }
+
+    if (!matiere) {
+      return res.status(404).json({
+        message:
+          userRole === &quot;admin&quot;
+            ? &quot;Matière introuvable.&quot;
+            : &quot;Matière non publiée ou introuvable.&quot;,
+      });
+    }
+
+    // Récupérer l&#039;historique
+    const historique = await Historique.find({ matiere: matiereId })
+      .populate(&quot;utilisateur&quot;, &quot;nom prenom role&quot;)
+      .sort({ date: -1 });
+
+    res.status(200).json({
+      ...matiere.toObject(),
+      historique,
+    });
+  } catch (error) {
+    res.status(500).json({
+      error: error.message,
+      stack: process.env.NODE_ENV === &quot;development&quot; ? error.stack : undefined,
+    });
+  }
+};
+export const updateMatiere = async (req, res) =&gt; {
+  try {
+    const matiereId = req.params.id;
+    const matiereToUpdate = req.body; // Données envoyées dans le corps de la requête
+
+    // Vérifier si la matière existe dans la base
+    const existingMatiere = await Matiere.findById(matiereId);
+    if (!existingMatiere) {
+      return res.status(404).json({ message: &quot;Matière non trouvée.&quot; });
+    }
+
+    const attributsAutorises = [
+      &quot;GroupeModule&quot;,
+      &quot;CoeffGroupeModule&quot;,
+      &quot;CodeMatiere&quot;,
+      &quot;Nom&quot;,
+      &quot;Credit&quot;,
+      &quot;Coefficient&quot;,
+      &quot;VolumeHoraire&quot;,
+      &quot;NbHeuresCours&quot;,
+      &quot;NbHeuresTD&quot;,
+      &quot;NbHeuresTP&quot;,
+      &quot;Curriculum&quot;,
+      &quot;Annee&quot;,
+      &quot;archived&quot;,
+      &quot;semestre&quot;,
+      &quot;niveau&quot;,
+      &quot;publiee&quot;,
+      &quot;competences&quot;,
+      &quot;enseignant&quot;,
+    ];
+    // Valider les attributs de la requête
+    const attributsInvalides = Object.keys(matiereToUpdate).filter(
+      (key) =&gt; !attributsAutorises.includes(key)
+    );
+    if (attributsInvalides.length &gt; 0) {
+      return res.status(400).json({
+        message: `Les attributs suivants ne sont pas valides : ${attributsInvalides.join(
+          &quot;, &quot;
+        )}`,
+      });
+    }
+    // Vérifier si un attribut est vide ou indéfini
+    const attributsVides = Object.keys(matiereToUpdate).filter(
+      (key) =&gt;
+        matiereToUpdate[key] === undefined ||
+        matiereToUpdate[key] === null ||
+        matiereToUpdate[key] === &quot;&quot;
+    );
+    if (attributsVides.length &gt; 0) {
+      return res.status(400).json({
+        message: `Le(s) champ(s) suivant(s) est (sont) vide(s) : ${attributsVides.join(
+          &quot;, &quot;
+        )}`,
+      });
+    }
+
+    // Liste des erreurs
+    const errors = [];
+
+    // Valider chaque attribut
+    if (
+      matiereToUpdate.GroupeModule &amp;&amp;
+      (typeof matiereToUpdate.GroupeModule !== &quot;string&quot; ||
+        matiereToUpdate.GroupeModule.trim() === &quot;&quot;)
+    ) {
+      errors.push(&quot;GroupeModule doit être une chaîne de caractères non vide.&quot;);
+    }
+
+    if (
+      matiereToUpdate.CoeffGroupeModule &amp;&amp;
+      (typeof matiereToUpdate.CoeffGroupeModule !== &quot;number&quot; ||
+        matiereToUpdate.CoeffGroupeModule &lt;= 0)
+    ) {
+      errors.push(&quot;CoeffGroupeModule doit être un nombre positif.&quot;);
+    }
+
+    if (
+      matiereToUpdate.CodeMatiere &amp;&amp;
+      (typeof matiereToUpdate.CodeMatiere !== &quot;string&quot; ||
+        matiereToUpdate.CodeMatiere.length &lt; 3)
+    ) {
+      errors.push(
+        &quot;CodeMatiere doit être une chaîne de caractères de 3 caractères minimum.&quot;
+      );
+    }
+
+    if (
+      matiereToUpdate.Nom &amp;&amp;
+      (typeof matiereToUpdate.Nom !== &quot;string&quot; ||
+        matiereToUpdate.Nom.trim().length &lt; 3)
+    ) {
+      errors.push(
+        &quot;Nom doit être une chaîne de caractères de 3 caractères minimum.&quot;
+      );
+    }
+
+    if (
+      matiereToUpdate.Credit &amp;&amp;
+      (typeof matiereToUpdate.Credit !== &quot;number&quot; ||
+        matiereToUpdate.Credit &lt;= 0)
+    ) {
+      errors.push(&quot;Credit doit être un nombre positif.&quot;);
+    }
+
+    if (
+      matiereToUpdate.Coefficient &amp;&amp;
+      (typeof matiereToUpdate.Coefficient !== &quot;number&quot; ||
+        matiereToUpdate.Coefficient &lt;= 0)
+    ) {
+      errors.push(&quot;Coefficient doit être un nombre positif.&quot;);
+    }
+
+    if (
+      matiereToUpdate.VolumeHoraire &amp;&amp;
+      (typeof matiereToUpdate.VolumeHoraire !== &quot;number&quot; ||
+        matiereToUpdate.VolumeHoraire &lt;= 0)
+    ) {
+      errors.push(&quot;VolumeHoraire doit être un nombre positif.&quot;);
+    }
+
+    if (
+      matiereToUpdate.NbHeuresCours &amp;&amp;
+      (typeof matiereToUpdate.NbHeuresCours !== &quot;number&quot; ||
+        matiereToUpdate.NbHeuresCours &lt; 0)
+    ) {
+      errors.push(&quot;NbHeuresCours doit être un nombre non négatif.&quot;);
+    }
+
+    if (
+      matiereToUpdate.NbHeuresTD &amp;&amp;
+      (typeof matiereToUpdate.NbHeuresTD !== &quot;number&quot; ||
+        matiereToUpdate.NbHeuresTD &lt; 0)
+    ) {
+      errors.push(&quot;NbHeuresTD doit être un nombre non négatif.&quot;);
+    }
+
+    if (
+      matiereToUpdate.NbHeuresTP &amp;&amp;
+      (typeof matiereToUpdate.NbHeuresTP !== &quot;number&quot; ||
+        matiereToUpdate.NbHeuresTP &lt; 0)
+    ) {
+      errors.push(&quot;NbHeuresTP doit être un nombre non négatif.&quot;);
+    }
+
+    if (
+      matiereToUpdate.Curriculum &amp;&amp;
+      !Array.isArray(matiereToUpdate.Curriculum)
+    ) {
+      errors.push(&quot;Curriculum doit être un tableau.&quot;);
+    }
+
+    if (
+      matiereToUpdate.semestre &amp;&amp;
+
+      ![&quot;S1&quot;, &quot;S2&quot;].includes(matiereToUpdate.semestre)
+
+    ) {
+      errors.push(
+        &quot;Semestre doit être l&#039;une des valeurs suivantes : S1, S2&quot;
+      );
+    }
+
+    if (
+      matiereToUpdate.niveau &amp;&amp;
+      ![&quot;1&quot;, &quot;2&quot;, &quot;3&quot;].includes(matiereToUpdate.niveau)
+    ) {
+      errors.push(
+        &quot;Niveau doit être l&#039;une des valeurs suivantes : 1ING, 2ING, 3ING.&quot;
+      );
+    }
+
+    if (
+      matiereToUpdate.Annee &amp;&amp;
+      (typeof matiereToUpdate.Annee !== &quot;number&quot; ||
+        matiereToUpdate.Annee &lt; 2000 ||
+        matiereToUpdate.Annee &gt; 3000)
+    ) {
+      errors.push(&quot;Annee doit être une année valide entre 2000 et 3000.&quot;);
+    }
+
+    if (
+      matiereToUpdate.publiee &amp;&amp;
+      typeof matiereToUpdate.publiee !== &quot;boolean&quot;
+    ) {
+      errors.push(&quot;publiee doit être un booléen.&quot;);
+    }
+
+    if (
+      matiereToUpdate.competences &amp;&amp;
+      !Array.isArray(matiereToUpdate.competences)
+    ) {
+      errors.push(&quot;competences doit être un tableau.&quot;);
+    }
+
+    // Vérification de l&#039;existence de l&#039;enseignant dans la base de données
+    if (matiereToUpdate.enseignant) {
+      try {
+        // Vérifie si l&#039;enseignant existe et s&#039;il a le rôle &quot;enseignant&quot;
+        const enseignantExiste = await User.findById(
+          matiereToUpdate.enseignant
+        );
+
+        if (!enseignantExiste) {
+          errors.push(
+            &quot;L&#039;enseignant spécifié n&#039;existe pas dans la base de données.&quot;
+          );
+        } else if (enseignantExiste.role !== &quot;enseignant&quot;) {
+          errors.push(&quot;L&#039;utilisateur spécifié n&#039;a pas le rôle d&#039;enseignant.&quot;);
+        }
+      } catch (error) {
+        errors.push(
+          &quot;Erreur lors de la vérification de l&#039;enseignant : &quot; + error.message
+        );
+      }
+    }
+    // Si des erreurs sont trouvées, renvoyer un message d&#039;erreur
+    if (errors.length &gt; 0) {
+      return res.status(400).json({
+        message: &quot;Erreur(s) de validation.&quot;,
+        errors,
+      });
+    }
+
+    // Récupérer la matière existante avant la mise à jour
+    const matiere = await Matiere.findById(matiereId);
+    if (!matiere) {
+      return res.status(404).json({ message: &quot;Matière non trouvée.&quot; });
+    }
+
+    // Sauvegarder les anciennes données
+    const ancienneValeurComplete = { ...matiere.toObject() }; //toObject permet de manipuler une copie des données sans affecter l&#039;original.
+   
+    // Mettre à jour la matière
+       const updatedMatiere = await Matiere.findByIdAndUpdate(
+      matiereId,
+      matiereToUpdate,
+      { new: true }
+    );
+
+    // Vérifier les attributs modifiés
+    const ancienneValeur = {};
+    const nouvelleValeur = {};
+    let aucuneModification = true;
+
+    for (const key in matiereToUpdate) {
+      if (
+        JSON.stringify(matiereToUpdate[key]) !==
+        JSON.stringify(ancienneValeurComplete[key])
+      ) {
+        //utiliser JSON.stringify pour une comparaison correcte des objets complexes
+        ancienneValeur[key] = ancienneValeurComplete[key]; // Attribut avant modification
+        nouvelleValeur[key] = updatedMatiere[key]; // Attribut après modification
+        aucuneModification = false; // Il y a eu une modification
+      }
+    }
+
+    // Si aucune modification n&#039;a été effectuée, afficher un message et ne pas sauvegarder dans l&#039;historique
+    if (aucuneModification) {
+      return res
+        .status(200)
+        .json({ message: &quot;Aucune modification effectuée.&quot; });
+    }
+
+    // Ajouter une entrée dans l&#039;historique uniquement si des modifications ont eu lieu
+    if (Object.keys(ancienneValeur).length &gt; 0) {
+      const historiqueEntry = new Historique({
+        matiere: updatedMatiere._id,
+        action: &quot;Modification&quot;,
+        ancienneValeur,
+        nouvelleValeur,
+        utilisateur: req.auth.userId,
+        date: new Date(),
+      });
+      console.log(&quot;Champs modifiés:&quot;, { ancienneValeur, nouvelleValeur });
+      await historiqueEntry.save();
+    }
+
+    // Répondre avec la matière mise à jour
+    res.status(200).json(updatedMatiere);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+
+export const publishOrHideMatieres = async (req, res) =&gt; {
+  try {
+    const { response } = req.params; // &quot;true&quot; ou &quot;false&quot; dans l&#039;URL
+    const publishStatus = response === &quot;true&quot;; // Convertir en booléen
+
+    // Mettre à jour toutes les matières
+    const updatedMatieres = await Matiere.updateMany(
+      {},
+      { publiee: publishStatus }
+    );
+
+    if (updatedMatieres.matchedCount === 0) {
+      return res.status(404).json({ message: &quot;Aucune matière trouvée.&quot; });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Toutes les matières ont été ${
+        publishStatus ? &quot;publiées&quot; : &quot;masquées&quot;
+      }.`,
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+export const deleteMatiere = async (req, res) =&gt; {
+  try {
+    const matiereId = req.params.id;
+
+    // Vérifier si la matière existe
+    const matiere = await Matiere.findById(matiereId);
+    if (!matiere) {
+      return res.status(404).json({ message: &quot;Matière non trouvée.&quot; });
+    }
+
+    // Vérifier si la matière a été utilisée
+    const matiereUtilisee = await Matiere.exists({
+      _id: matiereId,
+      enseignant: { $exists: true, $ne: null },
+    });
+
+    console.log(&quot;Test matière utilisée :&quot;, matiereUtilisee);
+    // Vérifier si la matière est déjà archivée
+    if (matiere.archived) {
+      return res.status(400).json({ message: &quot;Matière déjà archivée.&quot; });
+    }
+
+    if (matiereUtilisee) {
+      // Archiver la matière
+      matiere.archived = true;
+      await matiere.save();
+      return res.status(200).json({ message: &quot;Matière archivée avec succès.&quot; });
+    }
+
+    // Supprimer la matière si elle n&#039;a pas été utilisée
+    await Matiere.findByIdAndDelete(matiereId);
+    res.status(200).json({ message: &quot;Matière supprimée avec succès.&quot; });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+export const updateAvancement = async (req, res) =&gt; {
+  const { id } = req.params; // ID de la matière
+  const { chapitreIndex, sectionIndex, nouveauStatut } = req.body;
+
+  try {
+    // Trouver la matière
+    const matiere = await Matiere.findById(id);
+
+    if (!matiere) {
+      return res.status(404).json({ message: &quot;Matière non trouvée&quot; });
+    }
+
+    // Vérifier l&#039;existence du chapitre
+    const chapitre = matiere.Curriculum[chapitreIndex];
+    if (!chapitre) {
+      return res.status(400).json({ message: &quot;Chapitre invalide&quot; });
+    }
+
+    // Vérifier l&#039;existence de la section
+    const section = chapitre.sections[sectionIndex];
+    if (!section) {
+      return res.status(400).json({ message: &quot;Section invalide&quot; });
+    }
+
+    // Mettre à jour le statut de la section
+    section.AvancementSection = nouveauStatut;
+
+    // Ajouter la date de fin si la section est terminée
+    if (nouveauStatut === &quot;Terminee&quot;) {
+      section.dateFinSection = new Date();
+    }
+
+    // Ajouter la date de fin si le chapitre est terminé
+    if (nouveauStatut === &quot;Terminee&quot;) {
+      chapitre.dateFinChap = new Date();
+    }
+
+    // Si toutes les sections du chapitre sont &quot;terminé&quot;, mettre à jour le statut du chapitre
+    if (chapitre.sections.every((s) =&gt; s.AvancementSection === &quot;Terminee&quot;)) {
+      chapitre.AvancementChap = &quot;Terminee&quot;;
+    } else if (
+      chapitre.sections.some((s) =&gt; s.AvancementSection === &quot;EnCours&quot;)
+    ) {
+      chapitre.AvancementChap = &quot;EnCours&quot;;
+    } else {
+      chapitre.AvancementChap = &quot;NonCommencee&quot;;
+    }
+    // Activer automatiquement la section suivante si la section actuelle est terminée
+    if (nouveauStatut === &quot;Terminee&quot; &amp;&amp; chapitre.sections[sectionIndex + 1]) {
+      chapitre.sections[sectionIndex + 1].AvancementSection = &quot;EnCours&quot;;
+      chapitre.AvancementChap = &quot;EnCours&quot;;
+    }
+    // Enregistrer les modifications
+    await matiere.save();
+    // Récupérer les étudiants concernés
+    const etudiants = await User.find({ role: &quot;etudiant&quot;, matieres: id });
+
+    // Envoyer une réponse avec les détails mis à jour
+    res.status(200).json({
+      message: &quot;Avancement mis à jour et notifications envoyées avec succès&quot;,
+      matiere,
+    });
+  } catch (error) {
+    console.error(&quot;Erreur lors de la mise à jour de l&#039;avancement :&quot;, error);
+    res.status(500).json({ error: error.message });
+  }
+
+  // Notifier l&#039;admin et les étudiants
+  const admin = await User.findOne({ role: &quot;admin&quot; });
+
+  // Configuration du transporteur Nodemailer
+  const transporter = nodemailer.createTransport({
+    service: &quot;gmail&quot;,
+    host: &quot;smtp.gmail.com&quot;,
+    port: 465,
+    auth: {
+      user: process.env.MAILER_EMAIL_ID,
+      pass: process.env.MAILER_PASSWORD,
+    },
+  });
+  const matiere = await Matiere.findById(id);
+
+  // Vérifier l&#039;existence du chapitre
+  const chapitre = matiere.Curriculum[chapitreIndex];
+  if (!chapitre) {
+    return res.status(400).json({ message: &quot;Chapitre invalide&quot; });
+  }
+  // Vérifier l&#039;existence de la section
+  const section = chapitre.sections[sectionIndex];
+  if (!section) {
+    return res.status(400).json({ message: &quot;Section invalide&quot; });
+  }
+  // Envoi de l&#039;email à l&#039;administrateur
+  if (admin) {
+    const adminMailOptions = {
+      from: process.env.MAILER_EMAIL_ID,
+      to: admin.adresseEmail,
+      subject: `Mise à jour de l&#039;avancement pour la matière : &quot;${matiere.Nom}&quot;`,
+      text: `Bonjour ${admin.nom},
+
+La section &quot;${section.nomSection}&quot; du chapitre &quot;${chapitre.titreChapitre}&quot; a été mise à jour avec le statut : &quot;${nouveauStatut}&quot;.
+
+Cordialement,`,
+    };
+    await transporter.sendMail(adminMailOptions);
+  }
+  const etudiants = await User.find({ role: &quot;etudiant&quot;, matieres: id });
+
+  // Envoi de l&#039;email aux étudiants
+  for (const etudiant of etudiants) {
+    const etudiantMailOptions = {
+      from: process.env.MAILER_EMAIL_ID,
+      to: etudiant.adresseEmail,
+      subject: `Mise à jour de l&#039;avancement pour la matière : &quot;${matiere.Nom}&quot;`,
+      text: `Bonjour ${etudiant.nom},
+
+La section &quot;${section.nomSection}&quot; du chapitre &quot;${chapitre.titreChapitre}&quot; a été mise à jour avec le statut : &quot;${nouveauStatut}&quot;.
+
+Vous pouvez consulter la progression de cette matière sur la plateforme.
+
+Cordialement,`,
+    };
+    await transporter.sendMail(etudiantMailOptions);
+  }
+};
+
+function updateChapitreStatus(chapitre) {
+  // 1. Vérification que le chapitre a des sections
+  if (!chapitre.sections || !Array.isArray(chapitre.sections)) {
+    chapitre.AvancementChap = &quot;NonCommencee&quot;;
+    chapitre.dateFinChap = undefined;
+    return;
+  }
+
+  const sections = chapitre.sections;
+
+  // 2. Si toutes les sections sont terminées
+  if (sections.every((s) =&gt; s.AvancementSection === &quot;Terminee&quot;)) {
+    chapitre.AvancementChap = &quot;Terminee&quot;;
+    chapitre.dateFinChap = new Date();
+  }
+  // 3. Si au moins une section est en cours
+  else if (sections.some((s) =&gt; s.AvancementSection === &quot;EnCours&quot;)) {
+    chapitre.AvancementChap = &quot;EnCours&quot;;
+    chapitre.dateFinChap = undefined;
+  }
+  // 4. Cas par défaut (non commencé)
+  else {
+    chapitre.AvancementChap = &quot;NonCommencee&quot;;
+    chapitre.dateFinChap = undefined;
+  }
+}
+
+// Fonction helper pour mettre à jour le statut du chapitre
+
+// Fonction pour envoyer les notifications
+async function sendNotifications(
+  matiere,
+  chapitreIndex,
+  sectionIndex,
+  nouveauStatut
+) {
+  try {
+    const transporter = nodemailer.createTransport({
+      service: &quot;gmail&quot;,
+      host: &quot;smtp.gmail.com&quot;,
+      port: 465,
+      auth: {
+        user: process.env.MAILER_EMAIL_ID,
+        pass: process.env.MAILER_PASSWORD,
+      },
+    });
+
+    const chapitre = matiere.Curriculum[chapitreIndex];
+    const section = chapitre.sections[sectionIndex];
+
+    // Notification à l&#039;admin
+    const admin = await User.findOne({ role: &quot;admin&quot; });
+    if (admin &amp;&amp; admin.adresseEmail) {
+      await transporter.sendMail({
+        from: process.env.MAILER_EMAIL_ID,
+        to: admin.adresseEmail,
+        subject: `Mise à jour - ${matiere.Nom}`,
+        text: `La section &quot;${section.nomSection}&quot; (${nouveauStatut}) a été mise à jour.`,
+      });
+    }
+
+    // Notifications aux étudiants
+    const etudiants = await User.find({
+      role: &quot;etudiant&quot;,
+      matieres: matiere._id,
+    });
+
+    for (const etudiant of etudiants) {
+      if (etudiant.adresseEmail) {
+        await transporter.sendMail({
+          from: process.env.MAILER_EMAIL_ID,
+          to: etudiant.adresseEmail,
+          subject: `Avancement - ${matiere.Nom}`,
+          text: `La section &quot;${section.nomSection}&quot; est maintenant &quot;${nouveauStatut}&quot;.`,
+        });
+      }
+    }
+  } catch (error) {
+    console.error(&quot;Erreur lors de l&#039;envoi des notifications:&quot;, error);
+    // Ne pas bloquer le processus principal pour une erreur de notification
+  }
+}
+
+export const updateCurriculum = async (req, res) =&gt; {
+  try {
+    const matiere = await Matiere.findById(req.params.id);
+
+    if (!matiere) {
+      return res.status(404).json({ message: &quot;Matière non trouvée.&quot; });
+    }
+
+    // Vérifier si l&#039;utilisateur est l&#039;enseignant assigné ou admin
+    if (
+      req.auth.role === &quot;enseignant&quot; &amp;&amp;
+      (!matiere.enseignant || matiere.enseignant.toString() !== req.auth.userId)
+    ) {
+      return res.status(403).json({ message: &quot;Action non autorisée.&quot; });
+    }
+
+    // Validation du curriculum
+    if (!Array.isArray(req.body.Curriculum)) {
+      return res.status(400).json({ error: &quot;Format de curriculum invalide.&quot; });
+    }
+
+    // Valider chaque chapitre et section
+    const validatedCurriculum = req.body.Curriculum.map((chapitre) =&gt; {
+      return {
+        titreChapitre: chapitre.titreChapitre || &quot;Sans titre&quot;,
+        AvancementChap: chapitre.AvancementChap || &quot;NonCommencee&quot;,
+        sections: (chapitre.sections || []).map((section) =&gt; {
+          return {
+            nomSection: section.nomSection || &quot;Sans titre&quot;,
+            Description: section.Description || &quot;&quot;,
+            AvancementSection: section.AvancementSection || &quot;NonCommencee&quot;,
+            dateFinSection:
+              section.AvancementSection === &quot;Terminee&quot; ? new Date() : null,
+          };
+        }),
+      };
+    });
+
+    // Mettre à jour seulement le curriculum
+    const updated = await Matiere.findByIdAndUpdate(
+      req.params.id,
+      { Curriculum: validatedCurriculum },
+      { new: true }
+    );
+
+    res.json(updated);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+export const proposeModification = async (req, res) =&gt; {
+  const { id } = req.params; // Récupère l&#039;ID de la matière depuis l&#039;URL
+  const { contenu, raison } = req.body; // Récupère les données envoyées dans la requête
+  const userId = req.auth.userId; // Récupère l&#039;ID de l&#039;utilisateur connecté
+
+  try {
+    // Vérifier l&#039;existence de la matière
+    const matiere = await Matiere.findById(id);
+
+    if (!matiere) {
+      return res.status(404).json({ message: &quot;Matière non trouvée.&quot; }); // Si l&#039;ID est invalide
+    }
+    // Vérifier si l&#039;utilisateur connecté est bien assigné à cette matière
+    if (!matiere.enseignant || matiere.enseignant.toString() !== userId) {
+      return res.status(403).json({
+        message:
+          &quot;Vous n&#039;êtes pas autorisé à proposer une modification pour cette matière.&quot;,
+      });
+    }
+
+    // Exclure le titre et les compétences du contenu
+    const contenuSansNomCompetences = { ...contenu };
+    delete contenuSansNomCompetences.nom;
+    delete contenuSansNomCompetences.competences;
+
+    const teacher = await User.findOne({ role: &quot;enseignant&quot; });
+
+    // Créer une nouvelle proposition avec le contenu modifié
+    const nouvelleProposition = {
+      contenu: contenuSansNomCompetences, // Les nouvelles données sans nom et compétences
+      raison, // La raison du changement
+      enseignant: userId,
+      valide: false,
+      dateProposition: new Date(Date.now()).toISOString(), // Date.now() renvoie un timestamp en millisecondes
+    };
+
+    // Ajouter la proposition à l&#039;historique des propositions
+    matiere.historiquePropositions.push(nouvelleProposition);
+    // Sauvegarder la matière avec la nouvelle proposition
+    await matiere.save();
+
+    // Répondre avec succès et renvoyer la nouvelle proposition
+    res.status(201).json({
+      message: &quot;Proposition ajoutée avec succès.&quot;,
+      proposition: nouvelleProposition,
+    });
+  } catch (error) {
+    console.error(&quot;Erreur lors de la proposition de modification :&quot;, error); // Log en cas d&#039;erreur
+    res.status(500).json({ error: error.message }); // Répondre avec une erreur 500
+  }
+};
+
+export const validateModification = async (req, res) =&gt; {
+  const { id } = req.params;
+  const { propositionId } = req.body;
+
+  try {
+    const matiere = await Matiere.findById(id)
+      .populate(&quot;competences&quot;)
+      .populate(&quot;historiquePropositions.enseignant&quot;, &quot;nom prenom email&quot;);
+    if (!matiere) {
+      return res.status(404).json({ message: &quot;Matière non trouvée.&quot; });
+    }
+
+    const proposition = matiere.historiquePropositions.id(propositionId);
+
+    if (!proposition) {
+      return res.status(404).json({ message: &quot;Proposition non trouvée.&quot; });
+    }
+
+    if (proposition.valide) {
+      return res.status(400).json({
+        error: &quot;Cette proposition a déjà été validée.&quot;,
+      });
+    }
+
+    // Comparer le contenu actuel avec le contenu proposé pour identifier les champs modifiés
+    const modifications = {};
+    for (const key in proposition.contenu) {
+      if (matiere[key] !== proposition.contenu[key]) {
+        modifications[key] = {
+          ancien: matiere[key],
+          nouveau: proposition.contenu[key],
+        };
+      }
+    }
+
+    // Ajouter l&#039;ancien contenu de la matière à l&#039;historique
+    matiere.historiqueModifications.push({
+      contenu: modifications,
+    });
+
+    // Mettre à jour la matière avec le contenu validé
+    Object.assign(matiere, proposition.contenu);
+
+    // Marquer la proposition comme validée
+    proposition.valide = true;
+
+    // Sauvegarder la matière avec les modifications
+    await matiere.save();
+
+    res.status(200).json({
+      message: &quot;Proposition validée avec succès, contenu mis à jour.&quot;,
+      contenu: modifications,
+    });
+  } catch (error) {
+    console.error(&quot;Erreur lors de la validation :&quot;, error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
+export const EnvoiEmailEvaluation = async (req, res) =&gt; {
+  try {
+    const { matieresIds } = req.body;
+
+    if (!matieresIds || !Array.isArray(matieresIds)) {
+      return res.status(400).json({ error: &quot;Liste de matières invalide.&quot; });
+    }
+
+    const matieres = await Matiere.find({ _id: { $in: matieresIds } });
+    if (matieres.length === 0) {
+      return res.status(404).json({ error: &quot;Aucune matière trouvée.&quot; });
+    }
+
+    const transporter = nodemailer.createTransport({
+      service: &quot;gmail&quot;,
+      auth: {
+        user: process.env.MAILER_EMAIL_ID,
+        pass: process.env.MAILER_PASSWORD,
+      },
+    });
+
+    const etudiants = await User.find({ role: &quot;etudiant&quot; });
+
+    for (const etudiant of etudiants) {
+      if (!etudiant.adresseEmail) continue;
+
+      try {
+        await transporter.sendMail({
+          from: process.env.MAILER_EMAIL_ID,
+          to: etudiant.adresseEmail,
+          subject: &quot;Évaluation des matières&quot;,
+          html: `
+            &lt;h3&gt;Cher(e) ${etudiant.nom},&lt;/h3&gt;
+            &lt;p&gt;Vous êtes invité à évaluer les matières suivantes :&lt;/p&gt;
+            &lt;ul&gt;
+              ${matieres
+                .map(
+                  (m) =&gt;
+                    `&lt;li&gt;
+                  ${m.Nom} - 
+                  &lt;a href=&quot;${process.env.FRONTEND_URL}/matieres/${m._id}/evaluation&quot;&gt;
+                    Formulaire d&#039;évaluation
+                  &lt;/a&gt;
+                &lt;/li&gt;`
+                )
+                .join(&quot;&quot;)}
+            &lt;/ul&gt;
+            &lt;p&gt;Cordialement,&lt;br/&gt;L&#039;équipe pédagogique&lt;/p&gt;
+          `,
+        });
+      } catch (emailError) {
+        console.error(&quot;Erreur d&#039;envoi email:&quot;, emailError);
+      }
+    }
+
+    res.status(200).json({ message: &quot;Notifications envoyées avec succès.&quot; });
+  } catch (error) {
+    console.error(&quot;Erreur EnvoiEmailEvaluation:&quot;, error);
+    res.status(500).json({ error: &quot;Erreur serveur&quot; });
+  }
+};
+
+export const addEvaluation = async (req, res) =&gt; {
+  const { id } = req.params;
+  const etudiantId = req.auth.userId; // ID de l&#039;étudiant connecté
+
+  const {
+    VolumeHoraire,
+    MethodesPedagogiques,
+    Objectifs,
+    CoheranceContenu,
+    Satisfaction,
+    PertinenceMatiere,
+    Remarques,
+  } = req.body;
+
+  try {
+    // Vérifier si la matière existe
+    const matiere = await Matiere.findById(id);
+    if (!matiere) {
+      return res.status(404).json({ message: &quot;Matière non trouvée.&quot; });
+    }
+
+    // Vérifier si l&#039;étudiant a déjà évalué cette matière
+    if (matiere.etudiantsDejaEvalue.includes(etudiantId)) {
+      return res.status(400).json({
+        message: &quot;Vous avez déjà évalué cette matière.&quot;,
+      });
+    }
+
+    // Créer la nouvelle évaluation
+    const nouvelleEvaluation = {
+      VolumeHoraire,
+      MethodesPedagogiques,
+      Objectifs,
+      CoheranceContenu,
+      Satisfaction,
+      PertinenceMatiere,
+      Remarques,
+      dateEvaluation: new Date(),
+    };
+
+    // Ajouter l&#039;évaluation et marquer l&#039;étudiant
+    matiere.evaluations.push(nouvelleEvaluation);
+    matiere.etudiantsDejaEvalue.push(etudiantId);
+
+    // Sauvegarder
+    await matiere.save();
+
+    res.status(201).json({
+      message: &quot;Évaluation enregistrée avec succès.&quot;,
+      evaluation: nouvelleEvaluation,
+    });
+  } catch (error) {
+    console.error(&quot;Erreur lors de l&#039;ajout de l&#039;évaluation:&quot;, error);
+    res.status(500).json({
+      error: error.message,
+      details: process.env.NODE_ENV === &quot;development&quot; ? error.stack : undefined,
+    });
+  }
+};
+
+// Fonction pour récupérer les évaluations
+export const getEvaluations = async (req, res) =&gt; {
+  const { id } = req.params;
+  const userRole = req.auth.role;
+  const userId = req.auth.userId;
+
+  try {
+    // Récupérer la matière avec les évaluations et les étudiants
+    const matiere = await Matiere.findById(id)
+      .populate(&quot;enseignant&quot;, &quot;nom prenom email&quot;)
+      .populate(&quot;etudiantsDejaEvalue&quot;, &quot;nom prenom&quot;);
+
+    if (!matiere) {
+      return res.status(404).json({ message: &quot;Matière non trouvée.&quot; });
+    }
+
+    // Vérifier les permissions
+    if (userRole === &quot;admin&quot;) {
+      // Admin peut tout voir
+      return res.status(200).json({
+        matiere: {
+          _id: matiere._id,
+          Nom: matiere.Nom,
+          CodeMatiere: matiere.CodeMatiere,
+          Enseignant: matiere.enseignant,
+        },
+        evaluations: matiere.evaluations,
+        etudiantsEvaluateurs: matiere.etudiantsDejaEvalue,
+        nombreEvaluations: matiere.evaluations.length,
+      });
+    } else if (userRole === &quot;enseignant&quot;) {
+      // Enseignant ne voit que ses matières
+      if (matiere.enseignant._id.toString() !== userId) {
+        return res.status(403).json({
+          message: &quot;Accès refusé: vous n&#039;enseignez pas cette matière.&quot;,
+        });
+      }
+
+      return res.status(200).json({
+        matiere: {
+          _id: matiere._id,
+          Nom: matiere.Nom,
+          CodeMatiere: matiere.CodeMatiere,
+        },
+        evaluations: matiere.evaluations,
+        nombreEvaluations: matiere.evaluations.length,
+      });
+    } else {
+      return res.status(403).json({ message: &quot;Accès refusé.&quot; });
+    }
+  } catch (error) {
+    console.error(&quot;Erreur lors de la récupération des évaluations:&quot;, error);
+    res.status(500).json({
+      error: error.message,
+      details: process.env.NODE_ENV === &quot;development&quot; ? error.stack : undefined,
+    });
+  }
+};</textarea>
+  </div>
+</div>
+
+<footer class="footer">
+  <div class="container">
+    <p>.</p>
+  </div>
+</footer>
+
+<script type="text/html" id="complexity-popover-template">
+  <div class="complexity-notice">
+    Complexity : {{ cyclomatic }} <br>
+    Length : {{ halstead.length }} <br>
+    Difficulty : {{ halstead.difficulty.toFixed(2) }} <br>
+    Est # bugs : {{ halstead.bugs.toFixed(2) }}<br>
+  </div>
+</script>
+
+<script type="text/javascript" src="../../assets/scripts/bundles/core-bundle.js"></script>
+<script type="text/javascript" src="../../assets/scripts/bundles/codemirror.js"></script>
+<script type="text/javascript" src="../../assets/scripts/codemirror.markpopovertext.js"></script>
+<script type="text/javascript" src="report.js"></script>
+<script type="text/javascript" src="report.history.js"></script>
+<script type="text/javascript" src="../../assets/scripts/plato-file.js"></script>
+</body>
+</html>
